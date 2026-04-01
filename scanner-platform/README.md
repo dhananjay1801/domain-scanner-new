@@ -14,7 +14,7 @@ No build, no Docker, no configuration files — just install dependencies, clone
 
 ## Step 1: System Requirements
 
-Ensure the following are installed:
+Ensure the following are installed:.
 
 - Go **1.21 or later**
 - Git
