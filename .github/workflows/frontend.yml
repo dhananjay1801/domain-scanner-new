@@ -1,0 +1,54 @@
+name: Deploy Frontend (Static)
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'frontend/**'
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      # 1️⃣ Checkout code
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # 2️⃣ Setup Node
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      # 3️⃣ Install & Build (STATIC EXPORT)
+      - name: Build frontend
+        working-directory: frontend
+        run: |
+          npm install
+          NEXT_PUBLIC_API_URL=/api npm run build
+
+      # 4️⃣ Upload ONLY out/ folder
+      - name: Upload build to server
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.SERVER_IP }}
+          username: ${{ secrets.SERVER_USER }}
+          key: ${{ secrets.SSH_KEY }}
+          source: "/home/allianzcloud/scannerdomain/ShieldStat-Frontend/out/*"
+          target: "/var/www/scanner-frontend"
+
+      # 5️⃣ Fix permissions + restart Apache
+      - name: Restart Apache
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.SERVER_IP }}
+          username: ${{ secrets.SERVER_USER }}
+          key: ${{ secrets.SSH_KEY }}
+          script: |
+            echo "Fixing permissions..."
+            chown -R www-data:www-data /var/www/scanner-frontend
+
+            echo "Restarting Apache..."
+            systemctl restart apache2
