@@ -1,0 +1,54 @@
+version: "3.8"
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: scanner-postgres
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    ports:
+      - "54322:5432" # 🌐 Public access on 54322
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - scanner-network
+
+  redis:
+    image: redis:7-alpine
+    container_name: scanner-redis
+    #    command: redis-server --requirepass ${REDIS_PASSWORD}   # 🔐 MUST for public
+    ports:
+      - "6379:6379" # 🌐 Public access
+    networks:
+      - scanner-network
+
+  backend:
+    build: .
+    container_name: scanner-backend
+    ports:
+      - "8000:8000"
+    environment:
+      - DATABASE_URL=postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      - REDIS_HOST=${REDIS_HOST}
+      - REDIS_PORT=${REDIS_PORT}
+      - QUTTERA_API_KEY=${QUTTERA_API_KEY}
+      - JWT_SECRET=${JWT_SECRET}
+      - ABUSEIPDB_API_KEY=${ABUSEIPDB_API_KEY}
+    volumes:
+      - .:/app
+    depends_on:
+      - postgres
+      - redis
+    networks:
+      - scanner-network
+
+networks:
+  scanner-network:
+    external: true
+
+volumes:
+  postgres_data:
+
+
