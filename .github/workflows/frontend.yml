@@ -48,7 +48,7 @@ jobs:
           key: ${{ secrets.SSH_KEY }}
           script: |
             echo "Fixing permissions..."
-            chown -R www-data:www-data /var/www/scanner-frontend
+        #    chown -R www-data:www-data /var/www/scanner-frontend
 
             echo "Restarting Apache..."
             systemctl restart apache2
