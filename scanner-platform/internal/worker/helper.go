@@ -51,13 +51,15 @@ func send_scan_result_webhook(payload models.ScanResult) (any, error) {
 	return res.Status, nil
 }
 
-func send_fix_result_webhook(payload models.FixResult) (any, error) {
+
+func send_fix_result_webhook(payload models.FixScanResult) (any, error) {
 	url := "http://scanner-backend:8000/api/fix/result"
 
 	jsonData, err := json.Marshal(payload)
 	if err != nil {
 		return nil, err
 	}
+
 	res, err := http.Post(
 		url,
 		"application/json",
@@ -70,5 +72,5 @@ func send_fix_result_webhook(payload models.FixResult) (any, error) {
 
 	defer res.Body.Close()
 
-	return res.Status, nil
+	return res.Status, nil 
 }

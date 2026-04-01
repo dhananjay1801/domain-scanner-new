@@ -14,8 +14,8 @@ import (
 func main() {
 	ctx := context.Background()
 	// domain_name := "vulnweb.com"
-	// domain_name := "officebeacon.com"
-	domain_name := "allianzcloud.com"
+	domain_name := "officebeacon.com"
+	// domain_name := "allianzcloud.com"
 	// domain_name := "flowzstaffing.com"
 
 	fmt.Println("Starting scanning for domain:", domain_name)
@@ -45,7 +45,7 @@ func main() {
 
 	filter_registry.RegisterFilterScanner(filters.NewDedupFilter())
 	filter_registry.RegisterFilterScanner(filters.NewDNSFilter())
-	filter_registry.RegisterFilterScanner(filters.NewHTTPFilter())
+	// filter_registry.RegisterFilterScanner(filters.NewHTTPFilter())
 
 	// filter_registry.RegisterFilterScanner(filters.NEWDNSTEST()) // test dns
 
@@ -56,8 +56,7 @@ func main() {
 		panic(err)
 	}
 
-	fmt.Println("Total Filtered Subdomains Found:", filtered_results.Data)
-	fmt.Println(filtered_results)
+	fmt.Println("Total Filtered Subdomains Found:", len(filtered_results.Data.([]interface{})))
 
 	fmt.Println("Scanner 3 : Data Collection")
 
@@ -66,9 +65,9 @@ func main() {
 	collection_registry.RegisterCollectionScanner(collection.NewDNSDataOutput())
 	collection_registry.RegisterCollectionScanner(collection.NewHTTPXFilterOutput())
 	collection_registry.RegisterCollectionScanner(collection.NewPortFilter())
-	// collection_registry.RegisterCollectionScanner(collection.NewServiceDetectionScanner())
+	collection_registry.RegisterCollectionScanner(collection.NewServiceDetectionScanner())
 	collection_registry.RegisterCollectionScanner(collection.NewTLSDataCollection())
-	collection_registry.RegisterCollectionScanner(collection.NewMailSecurityDataCollection())
+	// collection_registry.RegisterCollectionScanner(collection.NewMailSecurityDataCollection())
 
 	collection_pipeline := core.NewCollectionPipeline(collection_registry)
 
@@ -77,49 +76,49 @@ func main() {
 		panic(err)
 	}
 
-	// for _, r := range collection_pipeline_results.Data.([]interface{}) {
+	for _, r := range collection_pipeline_results.Data.([]interface{}) {
 
-	// 	data, err := json.MarshalIndent(r, "", "  ")
-	// 	if err != nil {
-	// 		fmt.Println("error:", err)
-	// 		continue
-	// 	}
+		data, err := json.MarshalIndent(r, "", "  ")
+		if err != nil {
+			fmt.Println("error:", err)
+			continue
+		}
 
-	// 	fmt.Println(string(data))
+		fmt.Println(string(data))
+	}
+
+	// dataMap, ok := collection_pipeline_results.Data.(map[string]interface{})
+	// if !ok {
+	// 	fmt.Println("Invalid data format")
+	// 	return
 	// }
 
-	dataMap, ok := collection_pipeline_results.Data.(map[string]interface{})
-	if !ok {
-		fmt.Println("Invalid data format")
-		return
-	}
+	// // -------- HOST --------
+	// if host, ok := dataMap["host"]; ok {
 
-	// -------- HOST --------
-	if host, ok := dataMap["host"]; ok {
+	// 	hostJSON, err := json.MarshalIndent(host, "", "  ")
+	// 	if err != nil {
+	// 		fmt.Println("host marshal error:", err)
+	// 	} else {
+	// 		fmt.Println("===== HOST =====")
+	// 		fmt.Println(string(hostJSON))
+	// 	}
+	// }
 
-		hostJSON, err := json.MarshalIndent(host, "", "  ")
-		if err != nil {
-			fmt.Println("host marshal error:", err)
-		} else {
-			fmt.Println("===== HOST =====")
-			fmt.Println(string(hostJSON))
-		}
-	}
+	// // -------- SUBDOMAINS --------
+	// if subs, ok := dataMap["subdomains"].([]interface{}); ok {
 
-	// -------- SUBDOMAINS --------
-	if subs, ok := dataMap["subdomains"].([]interface{}); ok {
+	// 	fmt.Println("===== SUBDOMAINS =====")
 
-		fmt.Println("===== SUBDOMAINS =====")
+	// 	for _, r := range subs {
 
-		for _, r := range subs {
+	// 		data, err := json.MarshalIndent(r, "", "  ")
+	// 		if err != nil {
+	// 			fmt.Println("error:", err)
+	// 			continue
+	// 		}
 
-			data, err := json.MarshalIndent(r, "", "  ")
-			if err != nil {
-				fmt.Println("error:", err)
-				continue
-			}
-
-			fmt.Println(string(data))
-		}
-	}
+	// 		fmt.Println(string(data))
+	// 	}
+	// }
 }

@@ -188,23 +188,14 @@ func (f *MailSecurityDataCollection) RunCollectionScanner(
 		"risk":   risk,
 	}
 
-	apexAsset := map[string]interface{}{
-		"subdomain": domain,
-		"mail_security": hostData["mail_security"],
-	}
-
-	var finalData []interface{}
-	if subSlice, ok := subdomains.Data.([]interface{}); ok {
-		finalData = append(subSlice, apexAsset)
-	} else {
-		finalData = []interface{}{apexAsset}
-	}
-
 	result := core.Result{
 		Scanner:  f.Name(),
 		Category: f.Category(),
 		Target:   domain,
-		Data:     finalData,
+		Data: map[string]interface{}{
+			"host":       hostData,
+			"subdomains": subdomains.Data,
+		},
 		Timestamp: time.Now(),
 	}
 

@@ -165,16 +165,25 @@ type TLSXOutput struct {
 // 	Protocol   string      `json:"protocol"`
 // 	TLSDetails *TLSDetails `json:"tls_details,omitempty"`
 // }
-
 type NmapRun struct {
 	Hosts []Host `xml:"host"`
 }
 
 type Host struct {
-	Ports []Port `xml:"ports>port"`
+	Addresses []Address      `xml:"address"`
+	Hostnames []Hostname     `xml:"hostnames>hostname"`
+	Ports     []NmapPortData `xml:"ports>port"`
 }
 
-type Port struct {
+type Address struct {
+	Addr string `xml:"addr,attr"`
+}
+
+type Hostname struct {
+	Name string `xml:"name,attr"`
+}
+
+type NmapPortData struct {
 	PortID   int    `xml:"portid,attr"`
 	Protocol string `xml:"protocol,attr"`
 	State    struct {

@@ -7,24 +7,18 @@ type ScanJob struct {
 	Target string `json:"target"`
 }
 
-type FixData struct {
-	Category  string `json:"category"`
-	Subdomain string `json:"subdomain"`
-	Port      *int   `json:"port,omitempty"`
+type FixScanJob struct {
+	ScanID  string `json:"scan_id"`
+	Domain  string `json:"domain"`
+	FixType string `json:"fix_type"` // e.g., "port", "vulnerability", etc.
+	Data    any    `json:"data"`     // Additional data needed for the fix, e.g., port number
 }
 
-type FixJob struct {
-	ScanID  string  `json:"scan_id"`
-	Domain  string  `json:"domain"`
-	FixType string  `json:"fix_type"`
-	Data    FixData `json:"data"`
-}
-
-type FixResult struct {
+type FixScanResult struct {
 	ScanID  string `json:"scan_id"`
 	Domain  string `json:"domain"`
 	FixType string `json:"fix_type"`
-	Result  bool   `json:"result"`
+	Result  any    `json:"result"` // Result of the fix operation, e.g., success/failure or details
 }
 
 type ScanNotification struct {

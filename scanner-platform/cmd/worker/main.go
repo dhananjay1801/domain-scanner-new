@@ -1,74 +1,61 @@
 package main
 
 import (
-    "context"
-    "log"
-    "fmt"
-    "os"
-    "sync"
+	"context"
+	"fmt"
+	"log"
+	"os"
 
-    "scanner-platform/internal/queue"
-    "scanner-platform/internal/worker"
+	"scanner-platform/internal/queue"
+	"scanner-platform/internal/worker"
 )
 
 func main() {
-    ctx := context.Background()
-    addr := os.Getenv("REDIS_ADDR")
-    if addr == "" {
-        addr = "redis:6379"
-    }
+	ctx := context.Background()
+	addr := os.Getenv("REDIS_ADDR")
+	if addr == "" {
+		addr = "redis:6379"
+	}
+	scan_type := os.Getenv("WORKER_TYPE")
+	if scan_type == "" {
+		scan_type = "main"
+	}
 
-    q := queue.New(addr)
+	fq := queue.NewFixQueue(addr)
+	mq := queue.NewMainQueue(addr)
 
-    log.Println("Scanner worker started")
+	log.Println("Scanner worker started")
 
-    var wg sync.WaitGroup
+	for {
+		if scan_type == "fix" {
+			log.Println("Running fix worker")
 
-    // Goroutine 1: Poll scan_queue (blocks until a job arrives)
-    wg.Add(1)
-    go func() {
-        defer wg.Done()
-        for {
-            job, err := q.Pop(ctx)
-            if err != nil {
-                log.Println("Scan queue error:", err)
-                continue
-            }
+			job, err := fq.PopFixQueue(ctx)
+			if err != nil {
+				log.Println("Queue error:", err)
+			}
 
-            result, err := worker.Run(ctx, job)
-            if err != nil {
-                log.Println("Scan worker error:", err)
-                continue
-            }
+			result, err := worker.RunFix(ctx, job)
+			if err != nil {
+				log.Println("Worker error:", err)
+			}
 
-            fmt.Printf("Scan webhook response: %v\n", result)
-        }
-    }()
+			fmt.Printf("Webhook response: %v\n", result)
+			
+		} else {
 
-    // Goroutine 2: Poll fix_queue (polls every 2 seconds)
-    wg.Add(1)
-    go func() {
-        defer wg.Done()
-        for {
-            fixJob, err := q.PopFix(ctx)
-            if err != nil {
-                log.Println("Fix queue error:", err)
-                continue
-            }
-            if fixJob == nil {
-                // No fix jobs available, loop again
-                continue
-            }
+			job, err := mq.PopMainQueue(ctx)
+			if err != nil {
+				log.Println("Queue error:", err)
+				continue
+			}
 
-            err = worker.RunFix(ctx, fixJob)
-            if err != nil {
-                log.Println("Fix worker error:", err)
-                continue
-            }
-
-            fmt.Printf("Fix processed: scan=%s type=%s\n", fixJob.ScanID, fixJob.FixType)
-        }
-    }()
-
-    wg.Wait()
-}
+			result, err := worker.RunMain(ctx, job)
+			if err != nil {
+				log.Println("Worker error:", err)
+				continue
+			}
+			fmt.Printf("Webhook response: %v\n", result)
+		}
+	}
+}
