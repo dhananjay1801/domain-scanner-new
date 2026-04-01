@@ -5,7 +5,7 @@ It acts as the core engine that:
 Accepts scan requests
 Processes domain-related data
 Stores results in a database
-Provides summarized insights and scores via APIs.
+Provides summarized insights and scores via APIs
 
 This backend is built with scalability and modularity in mind, making it easy to extend with new scanning features and analytics.
 
