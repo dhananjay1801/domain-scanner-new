@@ -5,7 +5,7 @@ on:
     branches:
       - main
     paths:
-      - 'scanner-backend/**'
+      - 'Scanner-Backend/**'
 
 jobs:
   deploy:
@@ -19,7 +19,7 @@ jobs:
           username: ${{ secrets.SERVER_USER }}
           key: ${{ secrets.SSH_KEY }}
           script: |
-            cd /home/allianzcloud/domainscanner/scanner-backend
+            cd /home/allianzcloud/scannerdomain/Scanner-Backend
 
             echo "Pulling latest code..."
             git pull
