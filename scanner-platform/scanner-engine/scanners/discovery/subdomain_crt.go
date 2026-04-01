@@ -1,0 +1,87 @@
+package discovery
+
+import (
+	"context"
+	"encoding/json"
+	"net/http"
+	"strings"
+	"time"
+
+	"scanner-platform/scanner-engine/core"
+)
+
+type CrtCTScanner struct{}
+
+func NewCrtCTScanner() *CrtCTScanner {
+	return &CrtCTScanner{}
+}
+
+func (c *CrtCTScanner) Name() string {
+	return "subdomain_crtsh"
+}
+
+func (c *CrtCTScanner) Category() string {
+	return "discovery"
+}
+
+func (c *CrtCTScanner) RunDiscoveryScanner(
+	ctx context.Context, 
+	domain string,
+	) (core.Result, error) {
+	url := "https://crt.sh/?q=%25." + domain + "&output=json"
+
+	null := core.Result{}
+
+	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
+	if err != nil {
+		return null, err
+	}
+
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return null, err
+	}
+	defer resp.Body.Close()
+
+	var entries []map[string]interface{}
+	if err := json.NewDecoder(resp.Body).Decode(&entries); err != nil {
+		return null, err
+	}
+
+	seen := make(map[string]bool)
+	var results []string
+
+	for _, entry := range entries {
+		raw, ok := entry["name_value"].(string)
+		if !ok {
+			continue
+		}
+
+		names := strings.Split(raw, "\n")
+		for _, sub := range names {
+			sub = strings.TrimSpace(sub)
+
+			if !IsValidSubdomain(sub, domain) {
+				continue
+			}
+
+			if sub == "" || seen[sub] {
+				continue
+			}
+
+			seen[sub] = true
+
+			results = append(results, sub)
+		}
+	}
+
+	crt_subdomains_found := core.Result{
+		Scanner: c.Name(),
+		Category: c.Category(),
+		Target:    domain,
+		Data:      results,
+		Timestamp: time.Now(),
+	}
+
+	return crt_subdomains_found, nil
+}
