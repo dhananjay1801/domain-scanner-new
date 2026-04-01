@@ -24,7 +24,7 @@ jobs:
 
       # 3️⃣ Install & Build (STATIC EXPORT)
       - name: Build frontend
-        working-directory: /home/allianzcloud/scannerdomain/ShieldStat-Frontend
+        working-directory: ShieldStat-Frontend
         run: |
           npm install
           NEXT_PUBLIC_API_URL=/api npm run build
