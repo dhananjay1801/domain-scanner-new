@@ -6,7 +6,7 @@ No build, no Docker, no configuration files — just install dependencies, clone
 
 **Supported platforms:**
 
-- macOS
+- macOS.
 - Windows
 
 ---
