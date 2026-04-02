@@ -30,21 +30,21 @@ export function useAuth() {
   return ctx;
 }
 
-function getStoredUser(): AuthUser | null {
-  if (typeof window === 'undefined') return null;
-  const stored = localStorage.getItem('auth_user');
-  if (stored) {
-    try {
-      return JSON.parse(stored);
-    } catch {
-      localStorage.removeItem('auth_user');
-    }
-  }
-  return null;
-}
-
 export function AuthProvider({ children, onNavigate }: { children: React.ReactNode; onNavigate?: (path: string) => void }) {
-  const [user, setUser] = useState<AuthUser | null>(getStoredUser);
+  const [user, setUser] = useState<AuthUser | null>(null);
+  const [isHydrated, setIsHydrated] = useState(false);
+
+  useEffect(() => {
+    const stored = localStorage.getItem('auth_user');
+    if (stored) {
+      try {
+        setUser(JSON.parse(stored));
+      } catch {
+        localStorage.removeItem('auth_user');
+      }
+    }
+    setIsHydrated(true);
+  }, []);
 
   const login = useCallback(async (email: string, password: string) => {
     const response = await authApi.login(email, password);
