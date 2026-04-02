@@ -50,6 +50,7 @@ export async function apiFetch<T>(endpoint: string, options: CustomRequestInit =
         window.location.href = '/login';
       }
       const errorMessage = data?.detail || data?.message || response.statusText;
+      console.error(`[apiFetch] ${response.status} ${response.statusText} — ${url}`);
       throw new Error(errorMessage);
     }
 

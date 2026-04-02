@@ -29,8 +29,8 @@ export interface GeneratedScoreResponse {
  * If the score is already generated, it might return immediately.
  */
 export async function submitForAnalyzer(scanId: string): Promise<GeneratedScoreResponse> {
-  return apiFetch<GeneratedScoreResponse>(`/score/${scanId}`, {
-    method: 'POST',
+  return apiFetch<GeneratedScoreResponse>(`/api/score/${scanId}`, {
+    method: 'GET',
     timeout: 300000,
   });
 }
@@ -39,7 +39,7 @@ export async function submitForAnalyzer(scanId: string): Promise<GeneratedScoreR
  * Retrieves the generated score without triggering a rescore.
  */
 export async function getAnalyzerScore(scanId: string): Promise<GeneratedScoreResponse> {
-    return apiFetch<GeneratedScoreResponse>(`/score/get_score/${scanId}`, {
+    return apiFetch<GeneratedScoreResponse>(`/api/score/get_score/${scanId}`, {
         method: 'GET',
         timeout: 300000,
     });

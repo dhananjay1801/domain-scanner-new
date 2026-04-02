@@ -29,7 +29,7 @@ export async function getScanResult(scanId: string): Promise<any> {
  * Retrieves the history of previous scans.
  */
 export async function getScanHistory(): Promise<any[]> {
-    return apiFetch<any[]>('/api/scanner/history', {
+    return apiFetch<any[]>('/api/scanner/scan-history', {
         method: 'GET',
     });
 }
