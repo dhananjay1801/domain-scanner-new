@@ -42,7 +42,7 @@ def mapRiskToColor(risk: str) -> str:
     return "gray"
 
 
-def submit_assessment_logic(body, db: Session, user_id: str = None):
+def submit_assessment_logic(body, db: Session):
     answers = body.answers
     questions = db.query(Question).all()
 
@@ -62,7 +62,6 @@ def submit_assessment_logic(body, db: Session, user_id: str = None):
     maxPossibleScore = 0
     processedAnswers = []
     seen_questions = set()
-    category_data = {}
 
     for ans in answers:
         qid = ans.questionId
@@ -74,17 +73,19 @@ def submit_assessment_logic(body, db: Session, user_id: str = None):
             )
         seen_questions.add(qid)
 
-        question_obj = db.query(Question).filter(Question._id == int(qid)).first()
-        if not question_obj:
+        question = questionMap.get(qid)
+        if not question:
             continue
-            
-        cat_name = question_obj.category_name
-        if cat_name not in category_data:
-            category_data[cat_name] = {"score": 0, "max": 0, "count": 0}
 
-        options = question_obj.options or []
-        option_map = {opt.get("option_key"): opt for opt in options}
+        options = question["options"]
+
+        option_map = {
+            opt.get("option_key"): opt
+            for opt in options
+        }
+
         selected_key = ans.selectedOption
+
         selectedOption = option_map.get(selected_key)
 
         if not selectedOption:
@@ -94,6 +95,7 @@ def submit_assessment_logic(body, db: Session, user_id: str = None):
             )
 
         points = int(selectedOption.get("score", 0))
+
         totalScore += points
 
         max_score_for_question = max(
@@ -101,20 +103,15 @@ def submit_assessment_logic(body, db: Session, user_id: str = None):
         ) if options else 0
 
         maxPossibleScore += max_score_for_question
-        
-        category_data[cat_name]["score"] += points
-        category_data[cat_name]["max"] += max_score_for_question
-        category_data[cat_name]["count"] += 1
 
         processedAnswers.append({
-            "questionId": str(question_obj._id),
-            "questionText": question_obj.question_text,
+            "questionId": str(question["_id"]),
+            "questionText": question["question_text"],
             "selectedOption": selectedOption,
             "pointsAwarded": points,
-            "category": cat_name
         })
 
-    if len(processedAnswers) != len(questions):
+    if len(processedAnswers) != len(questionMap):
         raise HTTPException(
             status_code=400,
             detail="All questions must be answered"
@@ -123,16 +120,6 @@ def submit_assessment_logic(body, db: Session, user_id: str = None):
     percentage = round(
         (totalScore / maxPossibleScore) * 100
     ) if maxPossibleScore > 0 else 0
-    
-    # Calculate category percentages
-    category_scores = {}
-    for cat_name, data in category_data.items():
-        cat_perc = round((data["score"] / data["max"]) * 100) if data["max"] > 0 else 0
-        category_scores[cat_name] = {
-            "score": data["score"],
-            "max": data["max"],
-            "percentage": cat_perc
-        }
 
     grade = calculateGrade(percentage)
     risk = mapGradeToRisk(grade)
@@ -146,11 +133,9 @@ def submit_assessment_logic(body, db: Session, user_id: str = None):
         "grade": grade,
         "risk_level": risk,
         "risk_color": color,
-        "category_scores": category_scores
     }
 
     new_result = AssessmentResult(
-        user_id=user_id,
         summary=summary,
         answers=processedAnswers,
     )
@@ -162,11 +147,12 @@ def submit_assessment_logic(body, db: Session, user_id: str = None):
     return new_result
 
 
-def get_latest_assessment(db: Session, user_id: str = None):
-    query = db.query(AssessmentResult)
-    if user_id:
-        query = query.filter(AssessmentResult.user_id == user_id)
-    result = query.order_by(AssessmentResult.created_at.desc()).first()
+def get_latest_assessment(db: Session):
+    result = (
+        db.query(AssessmentResult)
+        .order_by(AssessmentResult.created_at.desc())
+        .first()
+    )
 
     if not result:
         raise HTTPException(
@@ -175,10 +161,3 @@ def get_latest_assessment(db: Session, user_id: str = None):
         )
 
     return result
-
-def get_assessment_history(db: Session, user_id: str = None, limit: int = 10):
-    query = db.query(AssessmentResult)
-    if user_id:
-        query = query.filter(AssessmentResult.user_id == user_id)
-    results = query.order_by(AssessmentResult.created_at.desc()).limit(limit).all()
-    return results

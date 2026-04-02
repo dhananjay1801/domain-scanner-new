@@ -1,17 +1,7 @@
-from typing import List, Tuple
 from collections import defaultdict
 from sqlalchemy.orm import Session
-from sqlalchemy.exc import IntegrityError
 from fastapi import HTTPException
 from app.db.models import ScanSummary, ScanResult
-from app.db.base import get_db
-from app.api.analyzer.metadata import ISSUE_METADATA
-import requests
-
-import os
-from concurrent.futures import ThreadPoolExecutor
-
-ABUSEIPDB_API_KEY = os.getenv("ABUSEIPDB_API_KEY")
 
 START_SCORE = 100
 
@@ -56,7 +46,7 @@ def evaluate_dns(dns, is_root=False, has_mail_service=False):
     if not is_root:
         return penalty, issues
 
-    # NS check always on root domain
+    # NS check always on root
     if not dns.get("ns"):
         penalty += 2
         issues.append("Missing NS record")
@@ -176,7 +166,6 @@ def get_cvss_severity(score):
 def score_subdomain(asset, root_domain=None, has_mail_service=False):
     score = START_SCORE
     issues = []
-    category_penalties = defaultdict(int)
 
     dns = asset.get("dns_collection")
     http = asset.get("http_collection")
@@ -188,31 +177,26 @@ def score_subdomain(asset, root_domain=None, has_mail_service=False):
     dns_pen, dns_issues = evaluate_dns(dns, is_root=is_root, has_mail_service=has_mail_service)
     score -= dns_pen
     issues.extend(dns_issues)
-    category_penalties["DNS Health"] += dns_pen
 
     http_pen, http_issues = evaluate_http(http)
     score -= http_pen
     issues.extend(http_issues)
-    category_penalties["Application Security"] += http_pen
 
     for port in ports:
         p_pen, p_issues = evaluate_port(port)
         score -= p_pen
         issues.extend(p_issues)
-        category_penalties["Network Security"] += p_pen
 
         tls_pen, tls_issues = evaluate_tls(port)
         score -= tls_pen
         issues.extend(tls_issues)
-        category_penalties["TLS Security"] += tls_pen
 
     score = max(score, 0)
 
     return {
-        "subdomain": subdomain or "unknown",
+        "subdomain": asset.get("subdomain", "unknown"),
         "score": score,
-        "issues": issues,
-        "category_penalties": dict(category_penalties)
+        "issues": issues
     }
 
 
@@ -227,22 +211,13 @@ def score_domain(data, root_domain=None, has_mail_service=False):
 
     domain_score = int(sum(scores) / len(scores)) if scores else 0
 
-    category_scores = defaultdict(lambda: 100)
-    for res in results:
-        for cat, pen in res.get("category_penalties", {}).items():
-            category_scores[cat] -= pen / len(results) if results else 0
-    
-    # Ensure scores stay between 0-100 and are ints
-    final_category_scores = {cat: max(0, int(score)) for cat, score in category_scores.items()}
-
     cvss = get_cvss_severity(domain_score)
 
     return {
         "domain_score": domain_score,
         "cvss_score": cvss["cvss_score"],
         "severity": cvss["severity"],
-        "subdomains": results,
-        "category_scores": final_category_scores
+        "subdomains": results
     }
 
 
@@ -269,19 +244,11 @@ def categorize_issues(results, raw_data):
 
                         # Base entry (default)
                         severity_data = get_cvss_severity(sub["score"])
-                        
-                        # Get metadata for the specific issue type
-                        meta = ISSUE_METADATA.get(pattern, {})
 
                         entry = {
                             "subdomain": subdomain,
                             "ip": ip,
-                            "severity": meta.get("threat_level") or severity_data["severity"],
-                            "breach_risk": meta.get("breach_risk"),
-                            "impact": meta.get("impact"),
-                            "description": meta.get("description"),
-                            "remediation": meta.get("remediation"),
-                            "cvss": meta.get("cvss")
+                            "severity": severity_data["severity"]
                         }
                         # Only add port for Network Security
                         if category == "Network Security":
@@ -366,16 +333,9 @@ def calculate_score(scan_id: str, db: Session):
         raise HTTPException(status_code=404, detail="Scan not found")
 
     data = scan.results or {}
-    raw_data = data.get("data", [])
 
-    if isinstance(raw_data, list):
-        # Legacy format support
-        subdomains = raw_data
-        host = {"domain": scan.domain}
-    else:
-        # New format with host info
-        host = raw_data.get("host", {})
-        subdomains = raw_data.get("subdomains", [])
+    host = data.get("data", {}).get("host", {})
+    subdomains = data.get("data", {}).get("subdomains", [])
 
     # Detect mail service
     mail_security = host.get("mail_security", {})
@@ -384,141 +344,72 @@ def calculate_score(scan_id: str, db: Session):
         mail_security.get("dkim") or
         mail_security.get("mx")
     )
-    root_domain = host.get("domain") or scan.domain
+    root_domain = host.get("domain")
 
-    print(f"Analyzing {root_domain}: {len(subdomains)} subdomains, mail service: {has_mail_service}")
+    print("Host type:", type(host))
+    print("Subdomains count:", len(subdomains))
+    print("Has mail service:", has_mail_service)
+    print("Root domain:", root_domain)
 
     scoring = score_domain(subdomains, root_domain=root_domain, has_mail_service=has_mail_service)
     categorized = categorize_issues(scoring, subdomains)
 
-    # DNS security checks (root domain level)
-    dns_security_findings = evaluate_dns_security(host, subdomains)
-    if dns_security_findings:
-        dns_penalties = {
-            "Missing SPF record": 5, "Missing DMARC": 5, "Missing NS record": 5,
-            "Duplicate SPF record": 3, "Weak DMARC policy": 3, "Missing DKIM": 3,
-            "Weak SPF policy": 1
-        }
-        for check_name, check_findings in dns_security_findings.items():
+    dns_security = evaluate_dns_security(host, subdomains)
+    if dns_security:
+        for check_name, check_findings in dns_security.items():
             categorized["DNS Security"][check_name] = check_findings
-            penalty = dns_penalties.get(check_name, 0)
-            if penalty > 0:
-                scoring["domain_score"] = max(0, scoring["domain_score"] - penalty)
-                scoring["category_scores"]["DNS Health"] = max(0, scoring["category_scores"].get("DNS Health", 100) - penalty)
 
-    # IP Reputation logic (preserved from production)
-    ips_of_scan = get_ips_from_scan(subdomains)
-    reputation_findings = []
-    if ips_of_scan:
-        ips_to_check = ips_of_scan[:50]
-        with ThreadPoolExecutor(max_workers=20) as executor:
-            future_to_ip = {executor.submit(get_ip_reputation, ip): ip for ip in ips_to_check}
-            for future in future_to_ip:
-                ip = future_to_ip[future]
-                try:
-                    rep = future.result()
-                    if rep is not None:
-                        score = rep.get("abuseConfidenceScore", 0)
-                        if score > 80:
-                            meta = ISSUE_METADATA.get("Malicious IP Activity Detected", {})
-                            entry = {
-                                "subdomain": "Infrastructure",
-                                "ip": ip,
-                                "severity": "High",
-                                "breach_risk": meta.get("breach_risk"),
-                                "impact": meta.get("impact"),
-                                "description": meta.get("description"),
-                                "remediation": meta.get("remediation"),
-                                "cvss": meta.get("cvss"),
-                                "abuse_score": score,
-                                "country": rep.get("countryCode"),
-                                "usage_type": rep.get("usageType"),
-                                "isp": rep.get("isp")
-                            }
-                            reputation_findings.append(entry)
-                            penalty = min(20, score / 2)
-                            scoring["domain_score"] = max(0, scoring["domain_score"] - int(penalty))
-                except Exception as exc:
-                    print(f"IP {ip} generated an exception: {exc}")
-    
-    if reputation_findings:
-        if "IP Reputation" not in categorized:
-            categorized["IP Reputation"] = {}
-        categorized["IP Reputation"]["Malicious IP Activity Detected"] = reputation_findings
-        total_rep_penalty = sum([min(20, f["abuse_score"] / 2) for f in reputation_findings])
-        scoring["category_scores"]["IP Reputation"] = max(0, 100 - int(total_rep_penalty))
-
-    # Recalculate metrics
-    final_metrics = get_cvss_severity(scoring["domain_score"])
-    scoring["cvss_score"] = final_metrics["cvss_score"]
-    scoring["severity"] = final_metrics["severity"]
-
-    # Map to new category columns
     app_security = _to_plain_dict(categorized.get("Application Security"))
     network_security = _to_plain_dict(categorized.get("Network Security"))
     tls_security = _to_plain_dict(categorized.get("TLS Security"))
-    dns_sec = _to_plain_dict(categorized.get("DNS Security"))
+    dns_security = _to_plain_dict(categorized.get("DNS Security"))
+
+    categorized_vulnerabilities = {}
+    if app_security:
+        categorized_vulnerabilities["Application Security"] = app_security
+    if network_security:
+        categorized_vulnerabilities["Network Security"] = network_security
+    if tls_security:
+        categorized_vulnerabilities["TLS Security"] = tls_security
+    if dns_security:
+        categorized_vulnerabilities["DNS Security"] = dns_security
+
+    ips_of_scan = get_ips_from_scan(subdomains)
 
     new_summary = ScanSummary(
         scan_id=scan_id,
-        domain=root_domain,
+        domain=root_domain or scan.domain,
         domain_score=scoring["domain_score"],
-        cvss_score=scoring.get("cvss_score"),
         severity=scoring["severity"],
         mail_security=mail_security,
         app_security=app_security or None,
         network_security=network_security or None,
         tls_security=tls_security or None,
-        dns_security=dns_sec or None,
-        categorized_vulnerabilities=dict(categorized),
-        category_scores=scoring.get("category_scores", {}),
+        dns_security=dns_security or None,
         ips=ips_of_scan
     )
 
-    try:
-        db.merge(new_summary)
-        db.commit()
-    except IntegrityError:
-        db.rollback()
-        print(f"Skipping insert for {scan_id} due to concurrent update")
+    db.add(new_summary)
+    db.commit()
 
     return {
         "scan_id": scan_id,
         "domain_score": scoring["domain_score"],
-        "category_scores": scoring.get("category_scores", {}),
         "host": host,
         "severity": scoring["severity"],
-        "categorized_vulnerabilities": dict(categorized),
+        "categorized_vulnerabilities": categorized_vulnerabilities,
         "ips": ips_of_scan
     }
 
 def get_ips_from_scan(subdomains: list):
     ips = []
+
     for item in subdomains:
         http_data = item.get("http_collection", {})
+
         ip = http_data.get("ip")
         if ip:
             ips.append(ip)
-        dns_data = item.get("dns_collection", {})
-        a_records = dns_data.get("a") or []
-        if isinstance(a_records, list):
-            ips.extend([a_ip for a_ip in a_records if a_ip])
-        aaaa_records = dns_data.get("aaaa") or []
-        if isinstance(aaaa_records, list):
-            ips.extend([aaaa_ip for aaaa_ip in aaaa_records if aaaa_ip])
+            print(f"Found IP: {ip} for subdomain: {item.get('subdomain')}")
+        print(ips)
     return list(set(ips))
-
-def get_ip_reputation(ip: str):
-    if not ABUSEIPDB_API_KEY:
-        return None
-    url = 'https://api.abuseipdb.com/api/v2/check'
-    params = {'ipAddress': ip, 'maxAgeInDays': '90'}
-    headers = {'Accept': 'application/json', 'Key': ABUSEIPDB_API_KEY}
-    try:
-        response = requests.get(url, headers=headers, params=params, timeout=5)
-        if response.status_code == 200:
-            return response.json().get("data")
-        return None
-    except Exception as e:
-        print(f"Error fetching IP reputation: {e}")
-        return None
