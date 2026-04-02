@@ -69,7 +69,7 @@ export const Sidebar: React.FC = () => {
     }
   };
 
-  const userInitials = user
+  const userInitials = user?.name
     ? user.name.split(' ').map((n) => n[0]).join('').toUpperCase().slice(0, 2)
     : '??';
 

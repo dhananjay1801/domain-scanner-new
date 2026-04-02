@@ -35,8 +35,11 @@ function AssessmentOverviewContent() {
       try {
         const historyData = await getAssessmentHistory(10);
         setHistory(historyData || []);
-      } catch (err) {
-        console.error('Failed to fetch assessment history:', err);
+      } catch (err: any) {
+        if (!err.message?.includes('Not Found')) {
+          console.error('Failed to fetch assessment history:', err);
+        }
+        setHistory([]);
       }
 
       try {
