@@ -26,7 +26,7 @@ export default function ProfilePage() {
   const [showInviteModal, setShowInviteModal] = useState(false);
   const [inviteEmail, setInviteEmail] = useState('');
   const [inviteError, setInviteError] = useState('');
-  const [inviteSuccess, setInviteSuccess] = useState<{ member: TeamMember; link: string } | null>(null);
+  const [inviteSuccess, setInviteSuccess] = useState<{ member: TeamMember; inviteLink: string } | null>(null);
   const [copiedLink, setCopiedLink] = useState(false);
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
 
@@ -187,7 +187,7 @@ export default function ProfilePage() {
                   <div className="flex items-center gap-2">
                     {member.status === 'pending' && (
                       <button
-                        onClick={() => copyLink(`${window.location.origin}/invite/${member.invitationToken}`)}
+                        onClick={() => copyLink(`${window.location.origin}/invite/?token=${member.invitationToken}`)}
                         className="p-2 rounded-lg hover:bg-slate-100 text-slate-400 hover:text-blue-600 transition-colors"
                         title="Copy invite link"
                       >
@@ -303,10 +303,10 @@ export default function ProfilePage() {
                     <label className="block text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2">Share this invite link</label>
                     <div className="flex items-center gap-2">
                       <div className="flex-1 px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-mono text-slate-600 truncate">
-                        {inviteSuccess.link}
+                        {inviteSuccess.inviteLink}
                       </div>
                       <button
-                        onClick={() => copyLink(inviteSuccess.link)}
+                        onClick={() => copyLink(inviteSuccess.inviteLink)}
                         className="px-4 py-2.5 bg-blue-600 text-white text-[10px] font-black hover:bg-blue-700 rounded-xl uppercase tracking-widest transition-colors flex items-center gap-2"
                       >
                         {copiedLink ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}

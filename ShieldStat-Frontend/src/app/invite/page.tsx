@@ -1,8 +1,8 @@
 'use client'
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, Suspense } from 'react';
 import { motion } from 'framer-motion';
-import { useParams, useRouter } from 'next/navigation';
+import { useSearchParams, useRouter } from 'next/navigation';
 import {
   Shield,
   Check,
@@ -15,11 +15,11 @@ import {
 import { getInvitationByToken, acceptInvitation, type TeamMember } from '@/api/team';
 import { useAuth, type AuthUser } from '@/context/AuthContext';
 
-export default function InvitePage() {
-  const params = useParams();
+function InviteContent() {
+  const searchParams = useSearchParams();
   const router = useRouter();
   const { user } = useAuth();
-  const token = params.token as string;
+  const token = searchParams.get('token');
 
   const [invitation, setInvitation] = useState<{ member: TeamMember; ownerName: string } | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -27,7 +27,11 @@ export default function InvitePage() {
   const [accepting, setAccepting] = useState(false);
 
   useEffect(() => {
-    if (!token) return;
+    if (!token) {
+      setError('This invitation link is invalid or has expired.');
+      setLoading(false);
+      return;
+    }
     const result = getInvitationByToken(token);
     if (result) {
       setInvitation(result);
@@ -38,6 +42,7 @@ export default function InvitePage() {
   }, [token]);
 
   const handleAccept = () => {
+    if (!token) return;
     setAccepting(true);
     try {
       const result = acceptInvitation(token);
@@ -144,5 +149,20 @@ export default function InvitePage() {
         </button>
       </motion.div>
     </div>
+  );
+}
+
+export default function InvitePage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen flex items-center justify-center bg-[#f8fbff]">
+        <div className="text-center">
+          <div className="w-12 h-12 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto" />
+          <p className="text-sm text-slate-500 font-medium mt-4">Loading invitation...</p>
+        </div>
+      </div>
+    }>
+      <InviteContent />
+    </Suspense>
   );
 }

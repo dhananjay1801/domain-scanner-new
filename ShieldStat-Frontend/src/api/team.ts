@@ -58,7 +58,7 @@ export function inviteMember(email: string): { member: TeamMember; inviteLink: s
   members.push(newMember);
   localStorage.setItem(key, JSON.stringify(members));
 
-  const inviteLink = `${window.location.origin}/invite/${token}`;
+  const inviteLink = `${window.location.origin}/invite/?token=${token}`;
 
   return { member: newMember, inviteLink };
 }
@@ -94,6 +94,7 @@ export function acceptInvitation(token: string): { success: boolean; user?: Auth
         id: generateId(),
         name: member.name,
         email: member.email,
+        domain: owner?.domain || '',
         role: 'member',
       };
 
