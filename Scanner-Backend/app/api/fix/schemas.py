@@ -1,4 +1,4 @@
-from typing import Any
+from typing import Any, Optional
 from pydantic import BaseModel
 
 
@@ -12,11 +12,12 @@ class FixRequest(BaseModel):
 class FixResponse(BaseModel):
     message: str
     scan_id: str
-    reload: bool = False
+    domain_score: Optional[int] = None
+    severity: Optional[str] = None
 
 
 class FixResultRequest(BaseModel):
     scan_id: str
     domain: str
     fix_type: str
-    result: bool
+    result: Any

@@ -4,11 +4,10 @@ from sqlalchemy.orm import Session
 from fastapi import Depends, HTTPException
 from app.db.base import get_db
 from app.db.models import ScanRequest,ScanResult
-from app.core.middleware import protect
-
-router = APIRouter(prefix='/webhooks')
 
 connections = {}
+
+router = APIRouter(prefix='/webhooks')
 @router.websocket("/ws/{scan_id}")
 async def websocket_endpoint(websocket: WebSocket, scan_id: str):
     await websocket.accept()
@@ -55,33 +54,8 @@ async def scan_result_webhook(
         if not scan:
             raise HTTPException(status_code=404, detail="Scan not found")
 
-        raw_data = body.get("data", {})
-        
-        if isinstance(raw_data, dict) and "host" in raw_data and "subdomains" in raw_data:
-            scan.results = {
-                "data": raw_data,
-                "scan_id": scan_id,
-                "target": body.get("target"),
-                "timestamp": body.get("timestamp"),
-            }
-        else:
-            scan.results = body
-
+        scan.results = body
         db.commit()
-
-        try:
-            from app.api.analyzer.controller import calculate_score
-            calculate_score(scan_id, db)
-        except Exception as e:
-            print(f"Error calculating score for {scan_id} in webhook: {e}")
-
-        ws = connections.get(scan_id)
-        if ws:
-            await ws.send_json({
-                "event": "scan_completed",
-                "scan_id": scan_id,
-                "status": "completed"
-            })
 
         return {"status": "ok"}
     except HTTPException:
