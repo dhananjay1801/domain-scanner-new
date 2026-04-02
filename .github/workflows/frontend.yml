@@ -14,13 +14,13 @@ jobs:
     steps:
       # 1️⃣ Checkout code
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       # 2️⃣ Setup Node
       - name: Setup Node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
-          node-version: 20
+          node-version: 24
 
       # 3️⃣ Install & Build (STATIC EXPORT)
       - name: Build frontend
