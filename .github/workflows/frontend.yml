@@ -51,4 +51,4 @@ jobs:
             chown -R www-data:www-data /var/www/scanner-frontend
 
             echo "Restarting Apache..."
-            systemctl restart apache2
+            systemctl restart nginx
