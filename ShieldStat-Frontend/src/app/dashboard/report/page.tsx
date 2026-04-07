@@ -96,7 +96,8 @@ function SecurityReportContent() {
   const [isLoading, setIsLoading] = useState(true);
   const [reportError, setReportError] = useState<string | null>(null);
   const [totalSubdomains, setTotalSubdomains] = useState(0);
-  const [scanDate, setScanDate] = useState('');
+  const [scanDate, setScanDate] = useState('N/A');
+  const [mounted, setMounted] = useState(false);
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'warning'; visible: boolean } | null>(null);
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -110,6 +111,7 @@ function SecurityReportContent() {
   }, []);
 
   useEffect(() => {
+    setMounted(true);
     if (!scanId) {
       setIsLoading(false);
       setReportError('No scan_id provided. Please start a scan first.');

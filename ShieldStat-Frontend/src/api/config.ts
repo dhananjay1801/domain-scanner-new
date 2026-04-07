@@ -9,7 +9,14 @@ export interface CustomRequestInit extends RequestInit {
  * like setting headers, handling JSON response, and error catching.
  */
 export async function apiFetch<T>(endpoint: string, options: CustomRequestInit = {}): Promise<T> {
-  const url = `${API_BASE_URL}${endpoint}`;
+  const baseUrl = API_BASE_URL.replace(/\/+$/, '');
+  const cleanEndpoint = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
+  
+  let url = `${baseUrl}${cleanEndpoint}`;
+  
+  if (baseUrl.endsWith('/api') && cleanEndpoint.startsWith('/api/')) {
+     url = `${baseUrl}${cleanEndpoint.substring(4)}`; 
+  }
   
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), options.timeout || 60000);
