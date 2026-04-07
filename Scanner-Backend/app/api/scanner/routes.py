@@ -5,7 +5,7 @@ from app.core.middleware import protect
 from sqlalchemy.orm import Session
 from app.db.base import get_db
 import json
-from app.db.models import ScanResult, ScanRequest
+from app.db.models import ScanResult, ScanRequest, ScanSummary
 
 redis_client = RedisClient()
 
@@ -54,16 +54,42 @@ def get_scan_history(
     db: Session = Depends(get_db),
     current_user: dict = Depends(protect)
 ):
-    """Return all scans belonging to the logged-in user."""
+    """Return all regular scans (non-malware) belonging to the logged-in user."""
     scans = db.query(ScanRequest).filter(
-        ScanRequest.user_id == current_user["user_id"]
+        ScanRequest.user_id == current_user["user_id"],
+        (ScanRequest.data.op("->>")("type") == "regular") |
+        (ScanRequest.data.is_(None))
     ).order_by(ScanRequest.time.desc()).all()
 
-    return [
-        {
+    history = []
+    for s in scans:
+        scan_result = db.query(ScanResult).filter(
+            ScanResult.scan_id == s.scan_id
+        ).first()
+
+        results = scan_result.results if scan_result else {}
+        status = results.get("status", "Pending")
+        
+        summary = db.query(ScanSummary).filter(
+            ScanSummary.scan_id == s.scan_id
+        ).first()
+        domain_score = summary.domain_score if summary and summary.domain_score is not None else 0
+
+        if status == "pending":
+            display_status = "Pending"
+        elif status == "failed":
+            display_status = "Failed"
+        elif status == "completed":
+            display_status = "Completed"
+        else:
+            display_status = status.capitalize() if isinstance(status, str) else "Pending"
+
+        history.append({
             "scan_id": s.scan_id,
             "domain": s.domain,
             "time": s.time.isoformat() if s.time else None,
-        }
-        for s in scans
-    ]
+            "status": display_status,
+            "score": domain_score,
+        })
+
+    return history

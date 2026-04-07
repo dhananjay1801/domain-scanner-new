@@ -102,11 +102,11 @@ export default function ProfilePage() {
       <div className="bg-white rounded-2xl p-8 shadow-sm border border-slate-100">
         <div className="flex items-center gap-6">
           <div className="w-20 h-20 rounded-full bg-gradient-to-tr from-blue-600 to-indigo-600 flex items-center justify-center text-white text-2xl font-black">
-            {user.name.split(' ').map((n) => n[0]).join('').toUpperCase().slice(0, 2)}
+            {user.email.slice(0, 2).toUpperCase()}
           </div>
           <div className="flex-1">
             <div className="flex items-center gap-3">
-              <h2 className="text-2xl font-black text-slate-900 tracking-tight">{user.name}</h2>
+              <h2 className="text-2xl font-black text-slate-900 tracking-tight">{user.email}</h2>
               <span className={`px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest ${
                 isOwner ? 'bg-blue-100 text-blue-700 border border-blue-200' : 'bg-purple-100 text-purple-700 border border-purple-200'
               }`}>

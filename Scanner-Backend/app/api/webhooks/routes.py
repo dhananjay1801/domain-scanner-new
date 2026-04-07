@@ -54,6 +54,9 @@ async def scan_result_webhook(
         if not scan:
             raise HTTPException(status_code=404, detail="Scan not found")
 
+        if "status" not in body:
+            body["status"] = "completed"
+        
         scan.results = body
         db.commit()
 

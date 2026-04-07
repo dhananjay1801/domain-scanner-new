@@ -1,7 +1,8 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 
 from app.db.base import get_db
+from app.db.models import AssessmentResult
 from app.api.assessment.schemas import SubmitAssessmentBody
 from app.api.assessment.controller import (
     submit_assessment_logic,
@@ -42,3 +43,25 @@ async def get_latest_assessment_result(
         "answers": result.answers,
         "created_at": result.created_at.isoformat(),
     }
+
+
+@router.get("/history")
+async def get_assessment_history(
+    limit: int = Query(default=10, ge=1, le=100),
+    db: Session = Depends(get_db)
+):
+    results = (
+        db.query(AssessmentResult)
+        .order_by(AssessmentResult.created_at.desc())
+        .limit(limit)
+        .all()
+    )
+
+    return [
+        {
+            "_id": str(r._id),
+            "summary": r.summary,
+            "created_at": r.created_at.isoformat() if r.created_at else None,
+        }
+        for r in results
+    ]

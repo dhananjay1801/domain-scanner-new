@@ -50,8 +50,13 @@ export async function apiFetch<T>(endpoint: string, options: CustomRequestInit =
         window.location.href = '/login';
       }
       const errorMessage = data?.detail || data?.message || response.statusText;
-      console.error(`[apiFetch] ${response.status} ${response.statusText} — ${url}`);
-      throw new Error(errorMessage);
+      const expectedStatuses = [202, 410];
+      if (!expectedStatuses.includes(response.status)) {
+        console.error(`[apiFetch] ${response.status} ${response.statusText} — ${url}`);
+      }
+      const error = new Error(errorMessage);
+      (error as any).status = response.status;
+      throw error;
     }
 
     return data as T;

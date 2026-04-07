@@ -139,6 +139,7 @@ func RunMain(ctx context.Context, job *models.ScanJob) (any, error) {
 	scanResult := models.ScanResult{
 		ScanID:    job.ScanID,
 		Target:    job.Target,
+		Status:    "completed",
 		Data:      collection_data_results.Data,
 		Timestamp: time.Now(),
 	}

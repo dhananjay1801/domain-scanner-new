@@ -31,6 +31,7 @@ type ScanNotification struct {
 type ScanResult struct {
 	ScanID    string    `json:"scan_id"`
 	Target    string    `json:"target"`
+	Status    string    `json:"status"`
 	Data      any       `json:"data"`
 	Timestamp time.Time `json:"timestamp"`
 }
