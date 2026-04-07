@@ -8,6 +8,7 @@ class User(Base):
     __tablename__ = "users"
 
     user_id = Column(String(36), primary_key=True)
+    name = Column(String(255), nullable=False)
     email = Column(String(255), unique=True, nullable=False)
     password = Column(String(255), nullable=False)
     domain = Column(Text, nullable=False)

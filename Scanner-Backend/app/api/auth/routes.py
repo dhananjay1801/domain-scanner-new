@@ -19,8 +19,9 @@ def register(
     email = req.email
     password = req.password
     domain = req.domain
+    name = req.name
 
-    if not email or not password or not domain:
+    if not name or not email or not password or not domain:
         raise HTTPException(status_code=400, detail="Please fill all the fields")
 
     try:
@@ -38,6 +39,7 @@ def register(
 
         new_user = User(
             user_id=user_id,
+            name=name.strip(),
             email=email.lower(),
             password=hashed_password,
             domain=domain.lower().strip()
@@ -81,6 +83,7 @@ def login(
 
         return {
             "user_id": user.user_id,
+            "name": user.name,
             "email": user.email,
             "domain": user.domain,
             "token": generateToken(user.user_id)
