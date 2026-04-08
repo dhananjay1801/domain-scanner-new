@@ -1,9 +1,19 @@
-export const API_BASE_URL = (() => {
-  const baseUrl = (process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000').replace(/\/+$/, '');
-  return baseUrl;
-})();
+function resolveBaseUrl(raw: string): string {
+  const trimmed = raw.trim();
+  if (!trimmed) return 'http://127.0.0.1:8000';
 
-export const API_PREFIX = '/api';
+  // Allow relative base URLs (e.g. "/api") when proxying through Next.js.
+  if (trimmed.startsWith('/')) {
+    if (typeof window === 'undefined') return trimmed.replace(/\/+$/, '');
+    return `${window.location.origin}${trimmed}`.replace(/\/+$/, '');
+  }
+
+  return trimmed.replace(/\/+$/, '');
+}
+
+export const API_BASE_URL = resolveBaseUrl(process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000');
+
+const API_PREFIX = '/api';
 
 export interface CustomRequestInit extends RequestInit {
   timeout?: number;
@@ -16,7 +26,10 @@ function normalizeUrl(endpoint: string): string {
     cleanEndpoint = cleanEndpoint.substring(4);
   }
   
-  let url = `${API_BASE_URL}${API_PREFIX}${cleanEndpoint}`;
+  const baseAlreadyHasApi = API_BASE_URL.endsWith('/api') || API_BASE_URL.endsWith('/api/');
+  const prefix = baseAlreadyHasApi ? '' : API_PREFIX;
+
+  let url = `${API_BASE_URL}${prefix}${cleanEndpoint}`;
   
   while (url.includes('/api/api/')) {
     url = url.replace('/api/api/', '/api/');

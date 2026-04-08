@@ -1,5 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException
 from app.api.scanner.service import create_scan_task_to_queue
+from app.api.scanner.schemas import RequestScanTask
 from app.core.redis_queue import RedisClient
 from app.core.middleware import protect
 from sqlalchemy.orm import Session
@@ -13,11 +14,16 @@ router = APIRouter(prefix='/api/scanner', tags=["scanner"])
 
 @router.post("/register-scan-task")
 async def register_scan_task(
+    payload: RequestScanTask,
     db: Session = Depends(get_db),
     current_user: dict = Depends(protect)
 ):
-    # Domain is taken directly from the user's registered domain in DB
-    domain = current_user["domain"]
+    domain = (payload.target or "").strip().lower()[:255]
+    if not domain:
+        raise HTTPException(status_code=400, detail="target domain is required")
+    # Minimal validation (frontend also validates); keep backend resilient.
+    if "://" in domain or "/" in domain or " " in domain:
+        raise HTTPException(status_code=400, detail="target must be a bare domain like example.com")
     return create_scan_task_to_queue(db, domain, current_user["user_id"])
 
 
