@@ -16,7 +16,12 @@ export async function apiFetch<T>(endpoint: string, options: CustomRequestInit =
     cleanEndpoint = cleanEndpoint.substring(4);
   }
 
-  const url = `${baseUrl}${cleanEndpoint}`;
+  let url = `${baseUrl}${cleanEndpoint}`;
+  
+  // Final safeguard: prevent any accidental /api/api prefixing if the logic above fails
+  if (url.includes('/api/api/')) {
+    url = url.replace(/\/api\/api\//g, '/api/');
+  }
 
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), options.timeout || 60000);
