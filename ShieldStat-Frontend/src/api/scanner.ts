@@ -9,7 +9,7 @@ export interface RegisterScanResponse {
  * Registers a new domain scan task in the backend queue.
  */
 export async function registerScanTask(domain: string): Promise<RegisterScanResponse> {
-  return apiFetch<RegisterScanResponse>('/api/scanner/register-scan-task', {
+  return apiFetch<RegisterScanResponse>('/scanner/register-scan-task', {
     method: 'POST',
     body: JSON.stringify({ target: domain }),
   });
@@ -20,7 +20,7 @@ export async function registerScanTask(domain: string): Promise<RegisterScanResp
  * Used for polling until the score is ready.
  */
 export async function getScanResult(scanId: string): Promise<any> {
-    return apiFetch<any>(`/api/scanner/scan-result?scan_id=${scanId}`, {
+    return apiFetch<any>(`/scanner/scan-result?scan_id=${scanId}`, {
         method: 'GET',
     });
 }
@@ -29,7 +29,7 @@ export async function getScanResult(scanId: string): Promise<any> {
  * Retrieves the history of previous scans.
  */
 export async function getScanHistory(): Promise<any[]> {
-    return apiFetch<any[]>('/api/scanner/scan-history', {
+    return apiFetch<any[]>('/scanner/scan-history', {
         method: 'GET',
     });
 }

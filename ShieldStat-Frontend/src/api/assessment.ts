@@ -13,7 +13,7 @@ export interface AssessmentResponse {
  * Submits the user's answers to the assessment questionnaire.
  */
 export async function submitAssessment(answers: any[]): Promise<AssessmentResponse> {
-  return apiFetch<AssessmentResponse>('/api/assess/', {
+  return apiFetch<AssessmentResponse>('/assess/', {
     method: 'POST',
     body: JSON.stringify({ answers }),
   });
@@ -23,7 +23,7 @@ export async function submitAssessment(answers: any[]): Promise<AssessmentRespon
  * Retrieves the latest assessment result.
  */
 export async function getLatestAssessment(): Promise<any> {
-  return apiFetch<any>('/api/assess/latest', {
+  return apiFetch<any>('/assess/latest', {
     method: 'GET',
   });
 }
@@ -32,7 +32,7 @@ export async function getLatestAssessment(): Promise<any> {
  * Retrieves the questionnaire options.
  */
 export async function getQuestions(): Promise<any[]> {
-  return apiFetch<any[]>('/api/questions/', {
+  return apiFetch<any[]>('/questions/', {
     method: 'GET',
   });
 }
@@ -41,7 +41,7 @@ export async function getQuestions(): Promise<any[]> {
  * Retrieves the history of assessment results.
  */
 export async function getAssessmentHistory(limit: number = 10): Promise<any[]> {
-  return apiFetch<any[]>(`/api/assess/history?limit=${limit}`, {
+  return apiFetch<any[]>(`/assess/history?limit=${limit}`, {
     method: 'GET',
   });
 }

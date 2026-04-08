@@ -1,7 +1,28 @@
-export const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000';
+export const API_BASE_URL = (() => {
+  const baseUrl = (process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000').replace(/\/+$/, '');
+  return baseUrl;
+})();
+
+export const API_PREFIX = '/api';
 
 export interface CustomRequestInit extends RequestInit {
   timeout?: number;
+}
+
+function normalizeUrl(endpoint: string): string {
+  let cleanEndpoint = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
+  
+  if (cleanEndpoint.startsWith('/api/')) {
+    cleanEndpoint = cleanEndpoint.substring(4);
+  }
+  
+  let url = `${API_BASE_URL}${API_PREFIX}${cleanEndpoint}`;
+  
+  while (url.includes('/api/api/')) {
+    url = url.replace('/api/api/', '/api/');
+  }
+  
+  return url;
 }
 
 /**
@@ -9,19 +30,7 @@ export interface CustomRequestInit extends RequestInit {
  * like setting headers, handling JSON response, and error catching.
  */
 export async function apiFetch<T>(endpoint: string, options: CustomRequestInit = {}): Promise<T> {
-  const baseUrl = API_BASE_URL.replace(/\/+$/, '');
-  let cleanEndpoint = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
-
-  if (baseUrl.endsWith('/api') && cleanEndpoint.startsWith('/api/')) {
-    cleanEndpoint = cleanEndpoint.substring(4);
-  }
-
-  let url = `${baseUrl}${cleanEndpoint}`;
-  
-  // Final safeguard: prevent any accidental /api/api prefixing if the logic above fails
-  if (url.includes('/api/api/')) {
-    url = url.replace(/\/api\/api\//g, '/api/');
-  }
+  const url = normalizeUrl(endpoint);
 
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), options.timeout || 60000);

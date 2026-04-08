@@ -14,14 +14,14 @@ export interface RegisterResponse {
 
 export const authApi = {
   login: async (email: string, password: string): Promise<LoginResponse> => {
-    return apiFetch<LoginResponse>('/api/auth/login', {
+    return apiFetch<LoginResponse>('/auth/login', {
       method: 'POST',
       body: JSON.stringify({ email, password }),
     });
   },
 
   register: async (name: string, email: string, password: string, domain: string): Promise<RegisterResponse> => {
-    return apiFetch<RegisterResponse>('/api/auth/register', {
+    return apiFetch<RegisterResponse>('/auth/register', {
       method: 'POST',
       body: JSON.stringify({ name, email, password, domain }),
     });

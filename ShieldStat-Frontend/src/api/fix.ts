@@ -55,7 +55,7 @@ export const CATEGORY_TO_FIX_CATEGORY: Record<string, string> = {
  * This will queue the fix for the scanner to process.
  */
 export async function submitFix(request: FixRequest): Promise<FixResponse> {
-  return apiFetch<FixResponse>('/api/fix/submit', {
+  return apiFetch<FixResponse>('/fix/submit', {
     method: 'POST',
     body: JSON.stringify(request),
   });
