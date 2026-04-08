@@ -1,5 +1,6 @@
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Query, HTTPException
 from sqlalchemy.orm import Session
+from app.core.middleware import protect
 
 from app.db.base import get_db
 from app.db.models import AssessmentResult
@@ -15,9 +16,10 @@ router = APIRouter(prefix="/api/assess", tags=["assessment"])
 @router.post("/")
 async def submit_assessment(
     body: SubmitAssessmentBody,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(protect)
 ):
-    result = submit_assessment_logic(body, db)
+    result = submit_assessment_logic(body, current_user["user_id"], db)
 
     return {
         "success": True,
@@ -33,9 +35,10 @@ async def submit_assessment(
 
 @router.get("/latest")
 async def get_latest_assessment_result(
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(protect)
 ):
-    result = get_latest_assessment(db)
+    result = get_latest_assessment(current_user["user_id"], db)
 
     return {
         "_id": str(result._id),
@@ -48,10 +51,12 @@ async def get_latest_assessment_result(
 @router.get("/history")
 async def get_assessment_history(
     limit: int = Query(default=10, ge=1, le=100),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(protect)
 ):
     results = (
         db.query(AssessmentResult)
+        .filter(AssessmentResult.user_id == current_user["user_id"])
         .order_by(AssessmentResult.created_at.desc())
         .limit(limit)
         .all()

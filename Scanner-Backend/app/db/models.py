@@ -27,6 +27,7 @@ class AssessmentResult(Base):
     __tablename__ = "assessment_results"
 
     _id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id = Column(String(36), ForeignKey("users.user_id"), nullable=True)
 
     summary = Column(JSONB, nullable=False)
     answers = Column(JSONB, nullable=False)

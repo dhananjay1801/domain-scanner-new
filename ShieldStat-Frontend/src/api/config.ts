@@ -10,25 +10,25 @@ export interface CustomRequestInit extends RequestInit {
  */
 export async function apiFetch<T>(endpoint: string, options: CustomRequestInit = {}): Promise<T> {
   const baseUrl = API_BASE_URL.replace(/\/+$/, '');
-  const cleanEndpoint = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
-  
-  let url = `${baseUrl}${cleanEndpoint}`;
-  
+  let cleanEndpoint = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
+
   if (baseUrl.endsWith('/api') && cleanEndpoint.startsWith('/api/')) {
-     url = `${baseUrl}${cleanEndpoint.substring(4)}`; 
+    cleanEndpoint = cleanEndpoint.substring(4);
   }
-  
+
+  const url = `${baseUrl}${cleanEndpoint}`;
+
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), options.timeout || 60000);
-  
+
   const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
-  
+
   const headers = new Headers(options.headers || {});
   if (!headers.has('Content-Type')) {
     headers.set('Content-Type', 'application/json');
   }
   headers.set('accept', 'application/json');
-  
+
   if (token) {
     headers.set('Authorization', `Bearer ${token}`);
   }
@@ -57,7 +57,7 @@ export async function apiFetch<T>(endpoint: string, options: CustomRequestInit =
         window.location.href = '/login';
       }
       const errorMessage = data?.detail || data?.message || response.statusText;
-      const expectedStatuses = [202, 410];
+      const expectedStatuses = [202, 404, 410];
       if (!expectedStatuses.includes(response.status)) {
         console.error(`[apiFetch] ${response.status} ${response.statusText} — ${url}`);
       }

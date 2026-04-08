@@ -6,17 +6,23 @@ import { History, Globe, ArrowRight, ShieldCheck, AlertTriangle, Loader2 } from 
 import Link from 'next/link';
 import { getScanHistory } from '@/api/scanner';
 
+const MONTH_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+function formatDate(dateStr: string): string {
+  const date = new Date(dateStr);
+  return `${MONTH_NAMES[date.getMonth()]} ${date.getDate()}, ${date.getFullYear()}`;
+}
+
 export default function ScanHistoryPage() {
   const [previousScans, setPreviousScans] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     getScanHistory().then(data => {
-      // Map data to the expected format
       const formatted = data.map(item => ({
         scanId: item.scan_id,
         domain: item.domain,
-        date: item.time ? new Date(item.time).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' }) : 'Unknown',
+        date: item.time ? formatDate(item.time) : 'Unknown',
         score: item.score || 0,
         status: item.status || 'Pending'
       }));

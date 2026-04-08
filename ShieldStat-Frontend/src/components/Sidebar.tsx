@@ -48,7 +48,12 @@ export const Sidebar: React.FC = () => {
   const { isCollapsed, setIsCollapsed } = useSidebar();
   const { user, isOwner, isMember, logout } = useAuth();
   const [isLogoHovered, setIsLogoHovered] = React.useState(false);
+  const [isHydrated, setIsHydrated] = React.useState(false);
   const hoverTimeoutRef = React.useRef<NodeJS.Timeout | null>(null);
+
+  React.useEffect(() => {
+    setIsHydrated(true);
+  }, []);
 
   const handleMouseEnter = () => {
     if (isCollapsed) {
@@ -171,7 +176,7 @@ export const Sidebar: React.FC = () => {
           );
         })}
 
-        {!user && (
+        {isHydrated && !user && (
           <Link 
             href="/login"
             title={isCollapsed ? 'Login' : undefined}
@@ -191,37 +196,48 @@ export const Sidebar: React.FC = () => {
 
       {/* Profile / Bottom Section */}
       <div className={`p-4 border-t border-slate-800/50 overflow-hidden`}>
-        {user ? (
-          <Link
-            href={profilePath}
-            className={`flex items-center ${isCollapsed ? 'justify-center' : 'space-x-3'} p-3 rounded-xl hover:bg-slate-800/50 transition-all cursor-pointer`}
-          >
-            <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-blue-600 to-indigo-600 flex-shrink-0 flex items-center justify-center text-white text-[10px] font-bold relative">
-              {userInitials}
+        {isHydrated ? (
+          user ? (
+            <Link
+              href={profilePath}
+              className={`flex items-center ${isCollapsed ? 'justify-center' : 'space-x-3'} p-3 rounded-xl hover:bg-slate-800/50 transition-all cursor-pointer`}
+            >
+              <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-blue-600 to-indigo-600 flex-shrink-0 flex items-center justify-center text-white text-[10px] font-bold relative">
+                {userInitials}
+                {!isCollapsed && (
+                  <span className={`absolute -top-0.5 -right-0.5 w-3 h-3 rounded-full border-2 border-[#0F172A] ${
+                    isOwner ? 'bg-blue-500' : 'bg-purple-500'
+                  }`} />
+                )}
+              </div>
               {!isCollapsed && (
-                <span className={`absolute -top-0.5 -right-0.5 w-3 h-3 rounded-full border-2 border-[#0F172A] ${
-                  isOwner ? 'bg-blue-500' : 'bg-purple-500'
-                }`} />
+                <div className="flex-1 overflow-hidden">
+                  <div className="flex items-center gap-2">
+                    <p className="text-xs font-bold text-white truncate">{user.name}</p>
+                  </div>
+                  <p className="text-[10px] text-slate-500 truncate">{isOwner ? 'Owner' : isMember ? 'Member' : 'User'}</p>
+                </div>
+              )}
+            </Link>
+          ) : (
+            <div className={`flex items-center ${isCollapsed ? 'justify-center' : 'space-x-3'} p-3 rounded-xl`}>
+              <div className="w-8 h-8 rounded-full bg-slate-700 flex-shrink-0 flex items-center justify-center text-slate-400 text-[10px] font-bold">
+                <LogIn size={14} />
+              </div>
+              {!isCollapsed && (
+                <div className="flex-1 overflow-hidden">
+                  <p className="text-xs font-bold text-slate-400 truncate">Not signed in</p>
+                  <p className="text-[10px] text-slate-600 truncate">Login to continue</p>
+                </div>
               )}
             </div>
-            {!isCollapsed && (
-              <div className="flex-1 overflow-hidden">
-                <div className="flex items-center gap-2">
-                  <p className="text-xs font-bold text-white truncate">{user.name}</p>
-                </div>
-                <p className="text-[10px] text-slate-500 truncate">{isOwner ? 'Owner' : isMember ? 'Member' : 'User'}</p>
-              </div>
-            )}
-          </Link>
+          )
         ) : (
           <div className={`flex items-center ${isCollapsed ? 'justify-center' : 'space-x-3'} p-3 rounded-xl`}>
-            <div className="w-8 h-8 rounded-full bg-slate-700 flex-shrink-0 flex items-center justify-center text-slate-400 text-[10px] font-bold">
-              <LogIn size={14} />
-            </div>
+            <div className="w-8 h-8 rounded-full bg-slate-700 flex-shrink-0 flex items-center justify-center text-slate-400 text-[10px] font-bold" />
             {!isCollapsed && (
               <div className="flex-1 overflow-hidden">
-                <p className="text-xs font-bold text-slate-400 truncate">Not signed in</p>
-                <p className="text-[10px] text-slate-600 truncate">Login to continue</p>
+                <div className="w-20 h-3 bg-slate-700 rounded animate-pulse" />
               </div>
             )}
           </div>
