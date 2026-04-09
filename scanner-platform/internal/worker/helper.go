@@ -54,6 +54,6 @@ func send_scan_result_webhook(payload models.ScanResult) (string, error) {
 
 
 func send_fix_result_webhook(payload models.FixScanResult) (string, error) {
-	url := "http://scanner-backend:8000/api/fix/result"
+	url := "http://scanner-backend:8000/fix/result"
 	return postJSON(url, payload)
 }
