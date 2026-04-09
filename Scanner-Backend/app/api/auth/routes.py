@@ -8,7 +8,7 @@ from app.db.models import User
 from app.api.auth.helper_functions import hashPassword, verifyPassword, generateToken
 from app.core.middleware import protect
 
-router = APIRouter(prefix='/api/auth', tags=['auth'])
+router = APIRouter(prefix='/auth', tags=['auth'])
 
 # new user registration
 @router.post('/register')

@@ -8,7 +8,7 @@ from app.db.base import get_db
 from app.api.fix.schemas import FixRequest, FixSubmitResponse, FixResultRequest, FixResultResponse
 from app.api.fix.service import apply_fix_result
 
-router = APIRouter(prefix="/api/fix", tags=["Fix"])
+router = APIRouter(prefix="/fix", tags=["Fix"])
 
 redis_client = RedisClient()
 QUEUE_NAME = "fix_queue"

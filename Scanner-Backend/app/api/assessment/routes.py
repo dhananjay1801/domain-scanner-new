@@ -10,7 +10,7 @@ from app.api.assessment.controller import (
     get_latest_assessment
 )
 
-router = APIRouter(prefix="/api/assess", tags=["assessment"])
+router = APIRouter(prefix="/assess", tags=["assessment"])
 
 
 @router.post("/")

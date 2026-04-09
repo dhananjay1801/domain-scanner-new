@@ -5,7 +5,7 @@ from app.api.analyzer.controller import calculate_score
 from app.db.models import ScanSummary, ScanResult
 from app.core.middleware import protect
 
-router = APIRouter(prefix="/api/score",tags=["Scoring"])
+router = APIRouter(prefix="/score", tags=["Scoring"])
 
 
 def build_categorized_vulnerabilities(scans: ScanSummary) -> dict:
