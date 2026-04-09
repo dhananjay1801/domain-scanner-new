@@ -49,6 +49,9 @@ app.add_middleware(
 # routes
 app.include_router(auth_router)
 app.include_router(scanner_router)
+# Keep a legacy copy of scanner routes under /api/api/* for older
+# production bundles and proxy setups that already prepend /api.
+app.include_router(scanner_router, prefix="/api", include_in_schema=False)
 app.include_router(webhook_scanner_router)
 app.include_router(assessment_router)
 app.include_router(questions_router)

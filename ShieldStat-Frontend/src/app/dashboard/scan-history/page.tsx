@@ -1,10 +1,10 @@
 'use client'
 
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
-import { History, Globe, ArrowRight, ShieldCheck, AlertTriangle, Loader2 } from 'lucide-react';
+import { Globe, ArrowRight, ShieldCheck, AlertTriangle, Loader2 } from 'lucide-react';
 import Link from 'next/link';
-import { getScanHistory } from '@/api/scanner';
+import { getScanHistory, ScanHistoryItem } from '@/api/scanner';
 
 const MONTH_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
@@ -13,26 +13,45 @@ function formatDate(dateStr: string): string {
   return `${MONTH_NAMES[date.getMonth()]} ${date.getDate()}, ${date.getFullYear()}`;
 }
 
-export default function ScanHistoryPage() {
-  const [previousScans, setPreviousScans] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
+interface DisplayScan {
+  scanId: string;
+  domain: string;
+  date: string;
+  score: number;
+  status: string;
+}
 
-  useEffect(() => {
-    getScanHistory().then(data => {
-      const formatted = data.map(item => ({
+export default function ScanHistoryPage() {
+  const [previousScans, setPreviousScans] = useState<DisplayScan[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const loadHistory = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+
+    try {
+      const data = await getScanHistory();
+      const formatted = data.map((item: ScanHistoryItem) => ({
         scanId: item.scan_id,
         domain: item.domain,
         date: item.time ? formatDate(item.time) : 'Unknown',
         score: item.score || 0,
-        status: item.status || 'Pending'
+        status: item.status || 'Pending',
       }));
       setPreviousScans(formatted);
+    } catch (err: any) {
+      console.error('Failed to load regular scan history:', err);
+      setError(err?.message || 'Failed to load scan history.');
+      setPreviousScans([]);
+    } finally {
       setLoading(false);
-    }).catch(err => {
-      console.error(err);
-      setLoading(false);
-    });
+    }
   }, []);
+
+  useEffect(() => {
+    loadHistory();
+  }, [loadHistory]);
 
   return (
     <div className="min-h-full flex flex-col gap-8 p-8 bg-[#fcfcfc]">
@@ -43,6 +62,20 @@ export default function ScanHistoryPage() {
 
       {loading ? (
         <div className="text-center p-8 text-slate-500 font-bold">Loading history...</div>
+      ) : error ? (
+        <div className="rounded-3xl border border-red-100 bg-white p-8 text-center">
+          <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-red-50 text-red-500">
+            <AlertTriangle size={24} />
+          </div>
+          <h2 className="text-lg font-black text-slate-900 uppercase tracking-tight">Unable to load history</h2>
+          <p className="mx-auto mt-2 max-w-md text-sm font-medium text-slate-500">{error}</p>
+          <button
+            onClick={loadHistory}
+            className="mt-6 rounded-xl bg-slate-900 px-5 py-2 text-xs font-bold uppercase tracking-wide text-white transition-all hover:bg-black active:scale-95"
+          >
+            Try Again
+          </button>
+        </div>
       ) : previousScans.length === 0 ? (
         <div className="text-center p-8 text-slate-500 font-bold">No previous scans found.</div>
       ) : (

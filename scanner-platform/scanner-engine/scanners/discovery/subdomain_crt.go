@@ -3,6 +3,8 @@ package discovery
 import (
 	"context"
 	"encoding/json"
+	"fmt"
+	"io"
 	"net/http"
 	"strings"
 	"time"
@@ -36,15 +38,38 @@ func (c *CrtCTScanner) RunDiscoveryScanner(
 	if err != nil {
 		return null, err
 	}
+	req.Header.Set("User-Agent", "scanner/1.0")
+	req.Header.Set("Accept", "application/json")
 
-	resp, err := http.DefaultClient.Do(req)
+	client := &http.Client{
+		Timeout: 15 * time.Second,
+	}
+
+	resp, err := client.Do(req)
 	if err != nil {
 		return null, err
 	}
 	defer resp.Body.Close()
 
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return null, err
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		return null, fmt.Errorf("crt.sh returned status %d: %s", resp.StatusCode, strings.TrimSpace(string(body)))
+	}
+
+	trimmed := strings.TrimSpace(string(body))
+	if trimmed == "" {
+		return null, fmt.Errorf("crt.sh returned empty response")
+	}
+	if strings.HasPrefix(trimmed, "<") {
+		return null, fmt.Errorf("crt.sh returned HTML instead of JSON")
+	}
+
 	var entries []map[string]interface{}
-	if err := json.NewDecoder(resp.Body).Decode(&entries); err != nil {
+	if err := json.Unmarshal(body, &entries); err != nil {
 		return null, err
 	}
 

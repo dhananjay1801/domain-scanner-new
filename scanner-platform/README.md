@@ -4,7 +4,7 @@ This README explains **only what is required to run the scanner locally for test
 No build, no Docker, no configuration files — just install dependencies, clone the repo, and run the scanner.
 
 **Supported platforms:**
-
+.
 - macOS
 - Windows
 

@@ -18,7 +18,7 @@ import (
 func RunFix(ctx context.Context, job *models.FixScanJob) (any, error) {
 	null := models.FixScanResult{}
 
-	log.Printf("Fix started: %s (%s)", job.UserID, job.Domain)
+	log.Printf("Fix started: %s (%s)", job.ScanID, job.Domain)
 	result := models.FixScanResult{}
 	var err error
 
@@ -31,13 +31,16 @@ func RunFix(ctx context.Context, job *models.FixScanJob) (any, error) {
 		fmt.Println("Fix Port-Scanner Completed.")
 	}
 	res, err := send_fix_result_webhook(result)
+	if err != nil {
+		return nil, err
+	}
 
 	return res, nil
 }
 
 func RunMain(ctx context.Context, job *models.ScanJob) (any, error) {
 
-	log.Printf("Scan started: %s (%s)", job.UserID, job.Target)
+	log.Printf("Scan started: %s (%s)", job.ScanID, job.Target)
 
 	fmt.Println("Pipeline started for domain:", job.Target)
 
@@ -58,7 +61,7 @@ func RunMain(ctx context.Context, job *models.ScanJob) (any, error) {
 	}
 
 	discovery_payload := models.ScanNotification{
-		UserID: job.UserID,
+		ScanID: job.ScanID,
 		Target: job.Target,
 		Event:  "subdomain_discovery_completed",
 		Status: "completed",
@@ -86,7 +89,7 @@ func RunMain(ctx context.Context, job *models.ScanJob) (any, error) {
 	}
 
 	filter_payload := models.ScanNotification{
-		UserID: job.UserID,
+		ScanID: job.ScanID,
 		Target: job.Target,
 		Event:  "subdomain_filter_completed",
 		Status: "completed",
@@ -116,7 +119,7 @@ func RunMain(ctx context.Context, job *models.ScanJob) (any, error) {
 	}
 
 	collection_payload := models.ScanNotification{
-		UserID: job.UserID,
+		ScanID: job.ScanID,
 		Target: job.Target,
 		Event:  "subdomain_collection_completed",
 		Status: "completed",
@@ -136,7 +139,7 @@ func RunMain(ctx context.Context, job *models.ScanJob) (any, error) {
 	// }
 
 	scanResult := models.ScanResult{
-		UserID:    job.UserID,
+		ScanID:    job.ScanID,
 		Target:    job.Target,
 		Status:    "completed",
 		Data:      collection_data_results.Data,
@@ -145,6 +148,9 @@ func RunMain(ctx context.Context, job *models.ScanJob) (any, error) {
 	fmt.Println("Final Results:", len(scanResult.Data.(map[string]interface{})["subdomains"].([]interface{})))
 
 	res, err := send_scan_result_webhook(scanResult)
+	if err != nil {
+		return nil, err
+	}
 
 	return res, nil
 }

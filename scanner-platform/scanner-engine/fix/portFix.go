@@ -31,10 +31,10 @@ func PortFix(ctx context.Context, job *models.FixScanJob) (models.FixScanResult,
 	result := strings.TrimSpace(out.String())
 	
 	PortFixResult := models.FixScanResult{
-		UserID: job.UserID,
-		Domain: job.Domain,
+		ScanID:  job.ScanID,
+		Domain:  job.Domain,
 		FixType: job.FixType,
-		Result : result,
+		Result:  result,
 	}
 	return PortFixResult, nil
 }
