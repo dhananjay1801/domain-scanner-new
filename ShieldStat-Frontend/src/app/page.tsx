@@ -18,6 +18,11 @@ export default function LandingPage() {
     e.preventDefault();
     const cleanDomain = domain.trim();
     if (cleanDomain) {
+      if (typeof window !== 'undefined' && !localStorage.getItem('token')) {
+        router.push('/login');
+        return;
+      }
+
       const domainPattern = /^(?:[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?\.)+[a-zA-Z]{2,}$/;
       if (!domainPattern.test(cleanDomain)) {
         setError('Please enter a valid domain name (e.g., example.com)');

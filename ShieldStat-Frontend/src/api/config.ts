@@ -17,6 +17,18 @@ const API_PREFIX = '/api';
 
 export interface CustomRequestInit extends RequestInit {
   timeout?: number;
+  requiresAuth?: boolean;
+}
+
+let authRedirectInFlight = false;
+
+function redirectToLogin() {
+  if (typeof window === 'undefined' || authRedirectInFlight) return;
+
+  authRedirectInFlight = true;
+  localStorage.removeItem('token');
+  localStorage.removeItem('auth_user');
+  window.location.replace('/login');
 }
 
 function normalizeUrl(endpoint: string): string {
@@ -48,7 +60,16 @@ export async function apiFetch<T>(endpoint: string, options: CustomRequestInit =
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), options.timeout || 60000);
 
+  const requiresAuth = options.requiresAuth ?? true;
   const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
+
+  if (requiresAuth && !token) {
+    clearTimeout(timeoutId);
+    const error = new Error('Not authenticated');
+    (error as any).status = 401;
+    redirectToLogin();
+    throw error;
+  }
 
   const headers = new Headers(options.headers || {});
   if (!headers.has('Content-Type')) {
@@ -78,10 +99,8 @@ export async function apiFetch<T>(endpoint: string, options: CustomRequestInit =
     }
 
     if (!response.ok) {
-      if (response.status === 401 && typeof window !== 'undefined') {
-        localStorage.removeItem('token');
-        localStorage.removeItem('auth_user');
-        window.location.href = '/login';
+      if (response.status === 401 && requiresAuth) {
+        redirectToLogin();
       }
       const errorMessage = data?.detail || data?.message || response.statusText;
       const expectedStatuses = [202, 404, 410];

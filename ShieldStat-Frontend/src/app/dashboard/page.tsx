@@ -75,18 +75,20 @@ function AssessmentOverviewContent() {
           <p className="text-sm text-slate-500 font-medium tracking-tight">Enterprise-wide security posture and maturity monitoring.</p>
         </div>
         <div className="flex items-center gap-3">
-          <Link href="/">
-            <button className="px-5 py-2.5 bg-white border border-slate-200 text-slate-700 text-xs font-black uppercase tracking-widest hover:bg-slate-50 transition-all flex items-center space-x-2 rounded-xl active:scale-95 shadow-sm">
-              <Search className="w-4 h-4" />
-              <span>New Quick Scan</span>
-            </button>
+          <Link
+            href="/"
+            className="px-5 py-2.5 bg-white border border-slate-200 text-slate-700 text-xs font-black uppercase tracking-widest hover:bg-slate-50 transition-all flex items-center space-x-2 rounded-xl active:scale-95 shadow-sm"
+          >
+            <Search className="w-4 h-4" />
+            <span>New Quick Scan</span>
           </Link>
           {assessment && (
-            <Link href="/dashboard/assessment/questionnaire">
-              <button className="px-5 py-2.5 bg-[#3b2a8d] text-white text-xs font-black uppercase tracking-widest hover:bg-[#2d1f70] transition-all flex items-center space-x-2 rounded-xl shadow-lg shadow-[#3b2a8d]/20 active:scale-95">
-                <Plus className="w-4 h-4" />
-                <span>Retake Assessment</span>
-              </button>
+            <Link
+              href="/dashboard/assessment/questionnaire"
+              className="px-5 py-2.5 bg-[#3b2a8d] text-white text-xs font-black uppercase tracking-widest hover:bg-[#2d1f70] transition-all flex items-center space-x-2 rounded-xl shadow-lg shadow-[#3b2a8d]/20 active:scale-95"
+            >
+              <Plus className="w-4 h-4" />
+              <span>Retake Assessment</span>
             </Link>
           )}
         </div>
@@ -192,11 +194,12 @@ function AssessmentOverviewContent() {
                 </div>
 
                 <div className="flex flex-col sm:flex-row items-center justify-center gap-4 pt-4">
-                  <Link href="/dashboard/assessment/questionnaire">
-                    <button className="px-10 py-4 bg-[#3b2a8d] hover:bg-[#2a1d6a] text-white font-black text-sm rounded-2xl transition-all shadow-xl shadow-blue-900/10 flex items-center gap-3 active:scale-95 group/btn uppercase tracking-widest">
-                      Start Assessment
-                      <ArrowRight size={18} className="group-hover/btn:translate-x-1 transition-transform" />
-                    </button>
+                  <Link
+                    href="/dashboard/assessment/questionnaire"
+                    className="px-10 py-4 bg-[#3b2a8d] hover:bg-[#2a1d6a] text-white font-black text-sm rounded-2xl transition-all shadow-xl shadow-blue-900/10 flex items-center gap-3 active:scale-95 group/btn uppercase tracking-widest"
+                  >
+                    Start Assessment
+                    <ArrowRight size={18} className="group-hover/btn:translate-x-1 transition-transform" />
                   </Link>
                 </div>
 

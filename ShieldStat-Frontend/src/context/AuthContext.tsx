@@ -20,6 +20,8 @@ interface AuthContextType {
   logout: () => void;
   isOwner: boolean;
   isMember: boolean;
+  isHydrated: boolean;
+  isAuthenticated: boolean;
 }
 
 const AuthContext = createContext<AuthContextType | null>(null);
@@ -35,14 +37,21 @@ export function AuthProvider({ children, onNavigate }: { children: React.ReactNo
   const [isHydrated, setIsHydrated] = useState(false);
 
   useEffect(() => {
-    const stored = localStorage.getItem('auth_user');
-    if (stored) {
+    const storedUser = localStorage.getItem('auth_user');
+    const storedToken = localStorage.getItem('token');
+
+    if (storedUser && storedToken) {
       try {
-        setUser(JSON.parse(stored));
+        setUser(JSON.parse(storedUser));
       } catch {
         localStorage.removeItem('auth_user');
+        localStorage.removeItem('token');
       }
+    } else if (storedUser || storedToken) {
+      localStorage.removeItem('auth_user');
+      localStorage.removeItem('token');
     }
+
     setIsHydrated(true);
   }, []);
 
@@ -85,7 +94,18 @@ export function AuthProvider({ children, onNavigate }: { children: React.ReactNo
   }, [onNavigate]);
 
   return (
-    <AuthContext.Provider value={{ user, login, register, logout, isOwner: user?.role === 'owner', isMember: user?.role === 'member' }}>
+    <AuthContext.Provider
+      value={{
+        user,
+        login,
+        register,
+        logout,
+        isOwner: user?.role === 'owner',
+        isMember: user?.role === 'member',
+        isHydrated,
+        isAuthenticated: Boolean(user),
+      }}
+    >
       {children}
     </AuthContext.Provider>
   );

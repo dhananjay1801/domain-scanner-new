@@ -16,6 +16,7 @@ export const authApi = {
   login: async (email: string, password: string): Promise<LoginResponse> => {
     return apiFetch<LoginResponse>('/auth/login', {
       method: 'POST',
+      requiresAuth: false,
       body: JSON.stringify({ email, password }),
     });
   },
@@ -23,6 +24,7 @@ export const authApi = {
   register: async (name: string, email: string, password: string, domain: string): Promise<RegisterResponse> => {
     return apiFetch<RegisterResponse>('/auth/register', {
       method: 'POST',
+      requiresAuth: false,
       body: JSON.stringify({ name, email, password, domain }),
     });
   },

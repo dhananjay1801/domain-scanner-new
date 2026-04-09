@@ -34,6 +34,7 @@ export async function getLatestAssessment(): Promise<any> {
 export async function getQuestions(): Promise<any[]> {
   return apiFetch<any[]>('/questions/', {
     method: 'GET',
+    requiresAuth: false,
   });
 }
 
