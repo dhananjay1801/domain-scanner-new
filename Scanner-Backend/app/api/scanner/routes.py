@@ -56,6 +56,7 @@ def get_scan_result(
 
 
 @router.get("/scan-history")
+@router.get("/history")
 def get_scan_history(
     db: Session = Depends(get_db),
     current_user: dict = Depends(protect)

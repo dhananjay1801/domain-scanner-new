@@ -1,7 +1,7 @@
 from dotenv import load_dotenv
 load_dotenv()
 
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from app.api.auth.routes import router as auth_router
 from app.api.scanner.routes import router as scanner_router
@@ -17,16 +17,6 @@ from app.api.malware.routes import router as malware_router
 from app.api.questions.service import seed_questions_data
 from app.db.base import SessionLocal
 app = FastAPI()
-
-API_COMPAT_PREFIXES = (
-    "/auth",
-    "/scanner",
-    "/malware",
-    "/assess",
-    "/questions",
-    "/score",
-    "/fix",
-)
 
 # Initialize database on startup
 @app.on_event("startup")
@@ -47,23 +37,6 @@ async def startup_event():
     finally:
         db.close()
 
-
-@app.middleware("http")
-async def restore_api_prefix_for_proxy_rewrites(request: Request, call_next):
-    """
-    Some production proxies forward `/api/*` to the backend after stripping the
-    first `/api` segment. Accept both `/api/...` and stripped paths like
-    `/auth/login` by restoring the API prefix before routing.
-    """
-    path = request.scope.get("path", "")
-    if not path.startswith("/api") and not path.startswith("/webhooks"):
-        if any(path == prefix or path.startswith(f"{prefix}/") for prefix in API_COMPAT_PREFIXES):
-            rewritten = f"/api{path}"
-            request.scope["path"] = rewritten
-            request.scope["raw_path"] = rewritten.encode("utf-8")
-
-    return await call_next(request)
-
 # CORS
 app.add_middleware(
     CORSMiddleware,
@@ -73,8 +46,17 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# routes — Nginx strips /api before forwarding, so backend
-# receives /auth/..., /scanner/..., /malware/..., etc. directly.
+# ── Routes ───────────────────────────────────────────────────────────
+#
+# Production (Nginx strips /api):
+#   Browser → /api/auth/register → Nginx → /auth/register → backend
+#
+# Local dev (no Nginx, config.ts adds /api):
+#   Browser → /api/auth/register → backend directly
+#
+# Both are handled by mounting routers TWICE:
+
+# 1) Without /api prefix — matches Nginx-stripped paths
 app.include_router(auth_router)
 app.include_router(scanner_router)
 app.include_router(assessment_router)
@@ -83,9 +65,17 @@ app.include_router(analyzer_router)
 app.include_router(fix_router)
 app.include_router(malware_router)
 
-# Webhooks are called by the Go scanner-platform directly (no Nginx proxy).
-app.include_router(webhook_scanner_router)
+# 2) With /api prefix — matches local dev / direct access paths
+app.include_router(auth_router, prefix="/api", include_in_schema=False)
+app.include_router(scanner_router, prefix="/api", include_in_schema=False)
+app.include_router(assessment_router, prefix="/api", include_in_schema=False)
+app.include_router(questions_router, prefix="/api", include_in_schema=False)
+app.include_router(analyzer_router, prefix="/api", include_in_schema=False)
+app.include_router(fix_router, prefix="/api", include_in_schema=False)
+app.include_router(malware_router, prefix="/api", include_in_schema=False)
 
+# Webhooks — Go scanner-platform calls directly, not through Nginx
+app.include_router(webhook_scanner_router)
 
 
 if __name__ == "__main__":
