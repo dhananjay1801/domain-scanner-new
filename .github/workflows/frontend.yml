@@ -20,27 +20,42 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@v6
         with:
-          node-version: 24
+          node-version: 20
 
-      # 3️⃣ Install & Build (STATIC EXPORT)
+      # 3️⃣ Install dependencies
+      - name: Install dependencies
+        working-directory: ShieldStat-Frontend
+        run: npm install
+
+      # 4️⃣ Build Next.js (static export)
       - name: Build frontend
         working-directory: ShieldStat-Frontend
         run: |
-          npm install
           NEXT_PUBLIC_API_URL=/api npm run build
 
-      # 4️⃣ Upload ONLY out/ folder
+      # 5️⃣ CLEAN OLD FILES (IMPORTANT)
+      - name: Clean old files on server
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.SERVER_IP }}
+          username: ${{ secrets.SERVER_USER }}
+          key: ${{ secrets.SSH_KEY }}
+          script: |
+            echo "Cleaning old build..."
+            rm -rf /var/www/scanner-frontend/*
+
+      # 6️⃣ Upload new build
       - name: Upload build to server
         uses: appleboy/scp-action@v0.1.7
         with:
           host: ${{ secrets.SERVER_IP }}
           username: ${{ secrets.SERVER_USER }}
           key: ${{ secrets.SSH_KEY }}
-          source: "ShieldStat-Frontend/out/*"
+          source: "ShieldStat-Frontend/out/"
           target: "/var/www/scanner-frontend/"
 
-      # 5️⃣ Fix permissions + restart Apache
-      - name: Restart Apache
+      # 7️⃣ Fix permissions + reload nginx
+      - name: Finalize deployment
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ secrets.SERVER_IP }}
@@ -50,5 +65,5 @@ jobs:
             echo "Fixing permissions..."
             chown -R www-data:www-data /var/www/scanner-frontend
 
-            echo "Restarting Apache..."
-            systemctl restart nginx
+            echo "Reloading Nginx..."
+            systemctl reload nginx
