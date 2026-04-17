@@ -1,0 +1,225 @@
+const API_BASE = import.meta.env.VITE_BACKEND_URL || "http://localhost:8000";
+
+/**
+ * Generic fetch wrapper with JSON handling and error extraction.
+ */
+async function request(endpoint, { method = "GET", body, token, signal } = {}) {
+  const headers = { "Content-Type": "application/json" };
+  if (token) headers["Authorization"] = `Bearer ${token}`;
+
+  const res = await fetch(`${API_BASE}${endpoint}`, {
+    method,
+    headers,
+    body: body ? JSON.stringify(body) : undefined,
+    signal,
+  });
+
+  const data = await res.json().catch(() => null);
+
+  if (!res.ok) {
+    const message = data?.detail || `Request failed (${res.status})`;
+    throw new Error(message);
+  }
+
+  return data;
+}
+
+// ─── Auth ────────────────────────────────────────────────────────────────────
+
+export function loginUser(email, password, captcha_token) {
+  return request("/auth/login", {
+    method: "POST",
+    body: { 
+      email, 
+      password, 
+      ...(captcha_token ? { captcha_token } : {}) 
+    },
+  });
+}
+
+export function registerUser(email, password, domain, captcha_token) {
+  return request("/auth/register", {
+    method: "POST",
+    body: { 
+      email, 
+      password, 
+      domain, 
+      ...(captcha_token ? { captcha_token } : {}) 
+    },
+  });
+}
+
+export function getProfile(token) {
+  return request("/auth/profile", { token });
+}
+
+export function forgotPassword(email) {
+  return request("/auth/forgot-password", {
+    method: "POST",
+    body: { email },
+  });
+}
+
+export function resetPasswordWithOtp(email, otp, new_password) {
+  return request("/auth/forgot-password/reset", {
+    method: "POST",
+    body: { email, otp, new_password },
+  });
+}
+
+export function resetPassword(old_password, new_password, token) {
+  return request("/auth/reset-password", {
+    method: "POST",
+    body: { old_password , new_password },
+    token,
+  });
+}
+
+// ─── Profile & Members ───────────────────────────────────────────────────────
+
+export function getMembers(token) {
+  return request("/auth/members", { token });
+}
+
+export function inviteMember(email, token) {
+  return request("/auth/invite", {
+    method: "POST",
+    body: { email },
+    token,
+  });
+}
+
+export function redeemPromo(code, token) {
+  return request("/auth/redeem-promo", {
+    method: "POST",
+    body: { code },
+    token,
+  });
+}
+
+export function addDomain(domain, token) {
+  return request("/auth/add-domain", {
+    method: "POST",
+    body: { domain },
+    token,
+  });
+}
+// ─── Scanner ──────────────────────────────────────────────────────────────────
+
+export function registerScanTask(domain, token) {
+  return request("/scanner/register-scan-task", {
+    method: "POST",
+    body: { domain },
+    token,
+  });
+}
+
+// ─── Score / Analyzer ─────────────────────────────────────────────────────────
+
+export function getScore(domain, token) {
+  return request(`/score/get_score?domain=${encodeURIComponent(domain)}`, {
+    token,
+  });
+}
+
+export function getScanHistory(token) {
+  return request("/score/history", { token });
+}
+
+export function getIpReputation(ip, token) {
+  return request(`/score/ip-reputation?ip=${encodeURIComponent(ip)}`, {
+    token,
+  });
+}
+
+// ─── WebSocket ────────────────────────────────────────────────────────────────
+
+export function getWebSocketUrl(orgId) {
+  const base = API_BASE.replace(/^http/, "ws");
+  return `${base}/webhooks/ws/${orgId}`;
+}
+
+// ─── Admin ────────────────────────────────────────────────────────────────────
+
+export function generatePromoCode(token) {
+  return request("/admin/generate-promo", {
+    method: "POST",
+    token,
+  });
+}
+
+export function getPromoCodes(token) {
+  return request("/admin/promo-codes", { token });
+}
+
+export function getUsersByOrg(token) {
+  return request("/admin/users", { token });
+}
+
+export function blockUserByEmail(email, token) {
+  return request("/admin/blacklist/block", {
+    method: "POST",
+    body: { email },
+    token,
+  });
+}
+
+export function unblockUserByEmail(email, token) {
+  return request("/admin/blacklist/unblock", {
+    method: "POST",
+    body: { email },
+    token,
+  });
+}
+
+export function getBlacklistedEmails(token) {
+  return request("/admin/blacklist", { token });
+}
+
+export function getScanSummaries(token) {
+  return request("/admin/scans/summaries", { token });
+}
+
+export function getTotalScans(token) {
+  return request("/admin/scans/total", { token });
+}
+
+// ─── Malware ──────────────────────────────────────────────────────────────────
+
+export function scanMalware(domain, token, signal) {
+  return request("/malware/scan", {
+    method: "POST",
+    body: { domain },
+    token,
+    signal,
+  });
+}
+
+export function getMalwareStatus(domain, token, signal) {
+  return request(`/malware/status?domain=${encodeURIComponent(domain)}`, {
+    token,
+    signal,
+  });
+}
+
+export function getMalwareReport(domain, token, signal) {
+  return request(`/malware/report?domain=${encodeURIComponent(domain)}`, {
+    token,
+    signal,
+  });
+}
+
+export function getMalwareScanHistory(domain, token, signal) {
+  let endpoint = "/malware/history";
+  if (domain) {
+    endpoint += `?domain=${encodeURIComponent(domain)}`;
+  }
+  return request(endpoint, { token, signal });
+}
+
+export function abortMalwareScan(scanId, token) {
+  return request(`/malware/abort/${scanId}`, {
+    method: "POST",
+    token,
+  });
+}

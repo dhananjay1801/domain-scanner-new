@@ -7,12 +7,12 @@ from app.api.auth.routes import router as auth_router
 from app.api.scanner.routes import router as scanner_router
 from app.db.create_db import init_db
 from app.db.init_db import init_tables
-
 from app.api.webhooks.routes import router as webhook_scanner_router
 from app.api.assessment.routes import router as assessment_router
 from app.api.questions.routes import router as questions_router
 from app.api.analyzer.routes import router as analyzer_router
 from app.api.fix.routes import router as fix_router
+from app.api.admin.routes import router as admin_router
 from app.api.malware.routes import router as malware_router
 from app.api.questions.service import seed_questions_data
 from app.db.base import SessionLocal
@@ -21,7 +21,7 @@ app = FastAPI()
 # Initialize database on startup
 @app.on_event("startup")
 async def startup_event():
-    print("Initializing database...")
+    # print("Initializing database...")
     init_db()
     init_tables()
 
@@ -37,6 +37,15 @@ async def startup_event():
     finally:
         db.close()
 
+    try:
+        from scripts.create_admin import create_admin_user
+        create_admin_user()
+    except RuntimeError as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"env details for admin are not set: {e}"
+        )
+
 # CORS
 app.add_middleware(
     CORSMiddleware,
@@ -46,37 +55,16 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# ── Routes ───────────────────────────────────────────────────────────
-#
-# Production (Nginx strips /api):
-#   Browser → /api/auth/register → Nginx → /auth/register → backend
-#
-# Local dev (no Nginx, config.ts adds /api):
-#   Browser → /api/auth/register → backend directly
-#
-# Both are handled by mounting routers TWICE:
 
-# 1) Without /api prefix — matches Nginx-stripped paths
 app.include_router(auth_router)
 app.include_router(scanner_router)
 app.include_router(assessment_router)
 app.include_router(questions_router)
 app.include_router(analyzer_router)
 app.include_router(fix_router)
-app.include_router(malware_router)
-
-# 2) With /api prefix — matches local dev / direct access paths
-app.include_router(auth_router, prefix="/api", include_in_schema=False)
-app.include_router(scanner_router, prefix="/api", include_in_schema=False)
-app.include_router(assessment_router, prefix="/api", include_in_schema=False)
-app.include_router(questions_router, prefix="/api", include_in_schema=False)
-app.include_router(analyzer_router, prefix="/api", include_in_schema=False)
-app.include_router(fix_router, prefix="/api", include_in_schema=False)
-app.include_router(malware_router, prefix="/api", include_in_schema=False)
-
-# Webhooks — Go scanner-platform calls directly, not through Nginx
+app.include_router(admin_router)
 app.include_router(webhook_scanner_router)
-
+app.include_router(malware_router)
 
 if __name__ == "__main__":
     import uvicorn

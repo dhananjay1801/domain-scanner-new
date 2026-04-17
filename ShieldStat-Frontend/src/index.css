@@ -1,0 +1,38 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+.glass-nav {
+    background-color: rgba(247, 249, 251, 0.7);
+    backdrop-filter: blur(20px);
+}
+
+.editorial-gradient {
+    background: #4f46e5;
+}
+
+.pulse-glow {
+    box-shadow: 0 0 40px rgba(79, 70, 229, 0.1);
+}
+
+.sidebar-item {
+    @apply flex items-center gap-3 px-4 py-3 rounded-lg text-slate-500 hover:text-indigo-600 hover:bg-slate-200 transition;
+}
+
+.sidebar-item.active {
+    @apply text-indigo-700 font-semibold bg-slate-200;
+}
+
+@keyframes scanSweep {
+    0% {
+        transform: translateX(-160%);
+    }
+
+    100% {
+        transform: translateX(320%);
+    }
+}
+
+.grecaptcha-badge {
+    visibility: hidden !important;
+}

@@ -1,7 +1,7 @@
 from collections import defaultdict
 from sqlalchemy.orm import Session
 
-from app.db.models import ScanSummary, ScanResult
+from app.db.models import ScanSummary
 from app.api.analyzer.controller import get_cvss_severity
 
 
@@ -85,9 +85,14 @@ def is_fix_successful(result) -> bool:
         for key in ("success", "is_success", "fixed"):
             if key in result:
                 return bool(result[key])
-        status = str(result.get("status", "")).strip().lower()
-        if status:
-            return status in {"success", "succeeded", "ok"}
+        
+        status = result.get("status")
+        if isinstance(status, bool):
+            return status
+            
+        status_str = str(status).strip().lower()
+        if status_str:
+            return status_str in {"success", "succeeded", "ok", "true"}
     return False
 
 
@@ -113,7 +118,7 @@ def remove_fixed_issue(summary: ScanSummary, issue_key: str, domain: str, catego
     return True
 
 
-def recalculate_score(summary: ScanSummary, scan_result: ScanResult):
+def recalculate_score(summary: ScanSummary):
     subdomain_penalty: dict[str, int] = defaultdict(int)
 
     category_blocks = [
@@ -133,15 +138,7 @@ def recalculate_score(summary: ScanSummary, scan_result: ScanResult):
                 if subdomain:
                     subdomain_penalty[subdomain] += penalty
 
-    raw_subdomains = (
-        (scan_result.results or {})
-        .get("data", {})
-        .get("subdomains", [])
-    )
-    subdomain_names = [s.get("subdomain") for s in raw_subdomains if s.get("subdomain")]
-    if not subdomain_names:
-        subdomain_names = list(subdomain_penalty.keys())
-
+    subdomain_names = list(subdomain_penalty.keys())
     if not subdomain_names:
         return
 
@@ -152,7 +149,7 @@ def recalculate_score(summary: ScanSummary, scan_result: ScanResult):
     summary.severity = get_cvss_severity(domain_score)["severity"]
 
 
-def apply_fix_result(scan_id: str, domain: str, fix_type: str, result, db: Session) -> dict:
+def apply_fix_result(org_id: str, domain: str, fix_type: str, result, db: Session) -> dict:
     """
     Process a fix result from the scanner.
 
@@ -168,7 +165,7 @@ def apply_fix_result(scan_id: str, domain: str, fix_type: str, result, db: Sessi
     if not issue_key or not category:
         return fail
 
-    summary = db.query(ScanSummary).filter(ScanSummary.scan_id == scan_id).first()
+    summary = db.query(ScanSummary).filter(ScanSummary.domain == domain).first()
     if not summary:
         return fail
 
@@ -176,9 +173,7 @@ def apply_fix_result(scan_id: str, domain: str, fix_type: str, result, db: Sessi
     if not removed:
         return fail
 
-    scan_result = db.query(ScanResult).filter(ScanResult.scan_id == scan_id).first()
-    if scan_result:
-        recalculate_score(summary, scan_result)
+    recalculate_score(summary)
 
     db.add(summary)
     db.commit()
