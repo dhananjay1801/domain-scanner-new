@@ -91,12 +91,6 @@ function AdminLayout() {
             <SidebarLink to="/admin/subscription" icon="payments">
               Subscription Management
             </SidebarLink>
-            <SidebarLink to="#" icon="history_edu">
-              Audit Logs
-            </SidebarLink>
-            <SidebarLink to="#" icon="query_stats">
-              System Stats
-            </SidebarLink>
           </nav>
 
           <div className="pt-8 mt-8 border-t space-y-2">
