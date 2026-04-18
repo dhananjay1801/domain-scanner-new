@@ -1,8 +1,5 @@
 const API_BASE = import.meta.env.VITE_BACKEND_URL || "http://localhost:8000";
 
-/**
- * Generic fetch wrapper with JSON handling and error extraction.
- */
 async function request(endpoint, { method = "GET", body, token, signal } = {}) {
   const headers = { "Content-Type": "application/json" };
   if (token) headers["Authorization"] = `Bearer ${token}`;

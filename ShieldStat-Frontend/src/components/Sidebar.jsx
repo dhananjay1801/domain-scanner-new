@@ -88,11 +88,6 @@ function Sidebar({ isOpen, onToggle }) {
               className="h-10 w-auto object-contain"
             />
           </div>
-          {availableSlots > 0 && (
-            <div className="flex h-6 items-center justify-center rounded-full bg-rose-100 px-2 text-xs font-black text-rose-700 shadow-sm animate-pulse">
-              +{availableSlots}
-            </div>
-          )}
         </div>
 
         {/* Menu */}
@@ -141,7 +136,14 @@ function Sidebar({ isOpen, onToggle }) {
               }
             />
             <span className="material-symbols-outlined">radar</span>
-            <span>Audit Domain</span>
+            <div className="flex flex-1 items-center justify-between">
+              <span>Audit Domain</span>
+              {availableSlots > 0 && (
+                <div className="flex h-5 items-center justify-center rounded-full bg-rose-100 px-2 text-[10px] font-black text-rose-700 shadow-sm animate-pulse">
+                  +{availableSlots}
+                </div>
+              )}
+            </div>
           </Link>
 
           {/* Dashboard link moved to top of the menu */}
@@ -161,7 +163,14 @@ function Sidebar({ isOpen, onToggle }) {
               }
             />
             <span className="material-symbols-outlined">bug_report</span>
-            <span>Malware Scan</span>
+            <div className="flex flex-1 items-center justify-between">
+              <span>Malware Scan</span>
+              {availableSlots > 0 && (
+                <div className="flex h-5 items-center justify-center rounded-full bg-rose-100 px-2 text-[10px] font-black text-rose-700 shadow-sm animate-pulse">
+                  +{availableSlots}
+                </div>
+              )}
+            </div>
           </Link>
 
 

@@ -8,6 +8,12 @@ import {
   getRadarPoint,
 } from "../utils/assessmentUtils";
 import { getScore, getMalwareReport, getProfile } from "../services/api";
+import { 
+  FileText, Link2, Globe, Zap, ShieldAlert, CheckCircle2, 
+  Bug, ShieldCheck, ArrowRight, Shield, AlertTriangle, 
+  Search, AlertCircle, Ban, Activity, Cpu, Layers, 
+  Clock, HardDrive, XCircle, MousePointer2 
+} from "lucide-react";
 
 function normalizeDomain(domain) {
   return (domain || "").trim();
@@ -29,6 +35,44 @@ function dedupeDomains(domains) {
     seen.add(d);
     return true;
   });
+}
+
+function StatCard({ label, value, icon: Icon, colorClass = "bg-rose-50 text-rose-600", borderClass = "border-rose-100" }) {
+  return (
+    <div className={`${colorClass} ${borderClass} border rounded-xl p-3 flex items-center gap-3 transition-all hover:scale-[1.02] shadow-sm`}>
+      <div className="w-8 h-8 rounded-lg bg-white/50 backdrop-blur-sm flex items-center justify-center shrink-0">
+        <Icon size={16} />
+      </div>
+      <div>
+        <div className="text-[10px] font-bold uppercase tracking-widest opacity-70 mb-0.5">{label}</div>
+        <div className="text-sm font-black leading-tight">{value}</div>
+      </div>
+    </div>
+  );
+}
+
+function extractMalwareSummary(report) {
+  if (!report) return null;
+  const rawFiles = Array.isArray(report.files) ? report.files : [];
+  const maliciousCount = rawFiles.filter(f => (f.threat || "").toLowerCase().includes("malicious") || (f._severity || "").toLowerCase() === "critical").length;
+  const suspiciousCount = rawFiles.filter(f => (f.threat || "").toLowerCase().includes("suspicious") || (f._severity || "").toLowerCase() === "high").length;
+  const totalFiles = report.total_files ?? rawFiles.length;
+  const cleanFiles = totalFiles - maliciousCount - suspiciousCount;
+  const linkUrls = Object.keys(report.links || {});
+  const domainEntries = Object.keys(report.domains || {});
+  
+  return {
+    totalFiles,
+    cleanFiles,
+    maliciousCount,
+    suspiciousCount,
+    linksCount: report.links_count ?? linkUrls.length,
+    domainsCount: report.domains_count ?? domainEntries.length,
+    alertsCount: Array.isArray(report.alerts) ? report.alerts.length : 0,
+    blacklistCount: Array.isArray(report.blacklist?.providers) ? report.blacklist.providers.length : 0,
+    isInfected: maliciousCount > 0,
+    timestr: report.timestr || "—"
+  };
 }
 
 function DomainTab({ domain, isActive, onClick }) {
@@ -150,14 +194,27 @@ function ScanDashboard() {
   else if (score >= 60) grade = { label: "Fair", color: "text-amber-600", bg: "bg-amber-600" };
   else if (score >= 40) grade = { label: "Moderate", color: "text-orange-600", bg: "bg-orange-600" };
 
-  const primaryIp = data?.ips?.[0] || "Unknown";
+  // Find the IP of the root domain (not just any subdomain)
+  const rootDomainLabel = (data?.host?.domain || domain || "").toLowerCase();
+  let rootIp = null;
+  if (data?.categorized_vulnerabilities) {
+    outer: for (const rules of Object.values(data.categorized_vulnerabilities)) {
+      for (const hosts of Object.values(rules || {})) {
+        if (!Array.isArray(hosts)) continue;
+        for (const h of hosts) {
+          if (h.subdomain?.toLowerCase() === rootDomainLabel && h.ip) {
+            rootIp = h.ip;
+            break outer;
+          }
+        }
+      }
+    }
+  }
+  const primaryIp = rootIp || data?.ips?.[0] || "Unknown";
   const domainName = data?.host?.domain || domain || "No Domain Selected";
   
-  // Calculate malware counts natively
-  const malwareList = Array.isArray(malware) ? malware : Array.isArray(malware?.scanned_content) ? malware.scanned_content : [];
-  const maliciousCount = malwareList.filter(c => c.sensitivity === "malicious" || c.status === "malicious").length;
-  const suspiciousCount = malwareList.filter(c => c.sensitivity === "suspicious" || c.status === "suspicious").length;
-  const cleanCount = malwareList.filter(c => !c.sensitivity || c.sensitivity === "clean" || c.status === "clean").length;
+  // Calculate malware summary
+  const mw = extractMalwareSummary(malware?.report);
 
   return (
     <div className="min-h-screen bg-surface relative">
@@ -355,9 +412,9 @@ function ScanDashboard() {
           )}
 
           {/* 3. Malware Scan Card (Horizontal) */}
-          {!malware ? (
+          {!mw ? (
             <div className="bg-white rounded-2xl p-10 shadow-sm border border-slate-200 flex flex-col items-center justify-center relative text-center">
-              <span className="material-symbols-outlined text-5xl text-slate-300 mb-3">coronavirus</span>
+              <Bug size={48} className="text-slate-300 mb-3" />
               <h3 className="text-xl font-bold text-slate-800">No Malware Data Logs</h3>
               <p className="text-slate-500 text-sm mt-1 max-w-sm">This domain hasn't been scanned for malware endpoints yet.</p>
               <Link to="/malware" className="mt-5 px-6 py-2.5 bg-rose-600 text-white font-bold rounded-lg hover:bg-rose-700 transition shadow-sm">
@@ -365,55 +422,36 @@ function ScanDashboard() {
               </Link>
              </div>
           ) : (
-             <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-200 flex flex-col md:flex-row items-center gap-8">
-               <div className="md:w-64 shrink-0 text-center md:text-left">
-                 <div className="flex items-center justify-center md:justify-start gap-3 mb-2">
-                   <span className="material-symbols-outlined text-rose-600 text-2xl">bug_report</span>
-                   <h3 className="font-bold text-slate-800 text-lg">Malware Intel</h3>
-                 </div>
-                 <span className={`px-3 py-0.5 ${maliciousCount > 0 ? "bg-rose-100 text-rose-800" : "bg-emerald-100 text-emerald-800"} text-[10px] uppercase font-bold tracking-widest rounded-full inline-block mb-3`}>
-                   {maliciousCount > 0 ? "Critical Threats" : "Clean Status"}
-                 </span>
-                 <p className="text-xs text-slate-500 max-w-xs mx-auto md:mx-0">
-                   Continuous file monitoring and real-time blacklisting checks across all endpoints for this domain.
-                 </p>
-               </div>
+             <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-200 flex flex-col md:flex-row items-stretch gap-8 relative overflow-hidden">
+               {/* Decorative background accent */}
+               <div className="absolute top-0 right-0 w-32 h-32 bg-rose-50 rounded-full blur-3xl -mr-16 -mt-16 opacity-50" />
 
-               <div className="flex-1 flex flex-wrap gap-4 justify-center md:justify-start w-full">
-                 <div className="bg-slate-50 border border-slate-100 rounded-xl px-5 py-4 flex items-center gap-5 hover:border-slate-200 transition-colors flex-1 min-w-[140px] max-w-[200px]">
-                   <div className="w-10 h-10 rounded-full bg-rose-100 flex items-center justify-center text-rose-600 shrink-0">
-                     <span className="material-symbols-outlined text-base">coronavirus</span>
-                   </div>
-                   <div>
-                      <div className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-0.5">Malicious</div>
-                      <div className="text-xl font-black text-slate-900 leading-tight">{maliciousCount}</div>
-                   </div>
-                 </div>
-
-                 <div className="bg-slate-50 border border-slate-100 rounded-xl px-5 py-4 flex items-center gap-5 hover:border-slate-200 transition-colors flex-1 min-w-[140px] max-w-[200px]">
-                   <div className="w-10 h-10 rounded-full bg-amber-100 flex items-center justify-center text-amber-600 shrink-0">
-                     <span className="material-symbols-outlined text-base">warning</span>
-                   </div>
-                   <div>
-                      <div className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-0.5">Suspicious</div>
-                      <div className="text-xl font-black text-slate-900 leading-tight">{suspiciousCount}</div>
-                   </div>
-                 </div>
-
-                 <div className="bg-slate-50 border border-slate-100 rounded-xl px-5 py-4 flex items-center gap-5 hover:border-slate-200 transition-colors flex-1 min-w-[140px] max-w-[200px]">
-                   <div className="w-10 h-10 rounded-full bg-emerald-100 flex items-center justify-center text-emerald-600 shrink-0">
-                     <span className="material-symbols-outlined text-base">check_circle</span>
-                   </div>
-                   <div>
-                      <div className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-0.5">Clean File</div>
-                      <div className="text-xl font-black text-slate-900 leading-tight">{cleanCount}</div>
-                   </div>
+               <div className="flex-1 flex flex-col justify-center py-2 z-10">
+                  <div className="inline-flex items-center gap-8 text-rose-600 text-[10px] font-bold uppercase tracking-widest mb-1">
+                    <div className="flex items-center gap-2">
+                      <span className="w-1.5 h-1.5 bg-rose-600 rounded-full" /> 
+                      Malware Analytics Summary
+                    </div>
+                    <span className="opacity-70">| &nbsp; Last Scan: {mw.timestr}</span>
+                  </div>
+                 
+                 <h3 className="text-4xl md:text-5xl font-extrabold font-headline tracking-tight text-slate-900 mb-6 truncate" title={domainName}>
+                   {domainName}
+                 </h3>
+                 
+                 <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-3">
+                    <StatCard label="Total Files" value={mw.totalFiles} icon={FileText} />
+                    <StatCard label="Total Links" value={mw.linksCount} icon={Link2} colorClass="bg-blue-50 text-blue-600" borderClass="border-blue-100" />
+                    <StatCard label="Domains" value={mw.domainsCount} icon={Globe} colorClass="bg-purple-50 text-purple-600" borderClass="border-purple-100" />
+                    <StatCard label="Smart Alerts" value={mw.alertsCount} icon={Zap} colorClass="bg-amber-50 text-amber-600" borderClass="border-amber-100" />
+                    <StatCard label="Blacklist DBs" value={mw.blacklistCount} icon={ShieldAlert} colorClass="bg-indigo-50 text-indigo-600" borderClass="border-indigo-100" />
+                    <StatCard label="Clean Files" value={mw.cleanFiles} icon={CheckCircle2} colorClass="bg-emerald-50 text-emerald-600" borderClass="border-emerald-100" />
                  </div>
                </div>
-
-               <div className="shrink-0 w-full md:w-auto">
-                 <Link to={`/malware-dashboard?domain=${encodeURIComponent(domain)}`} className="px-8 py-3 bg-slate-50 hover:bg-slate-100 text-rose-600 text-sm font-bold rounded-xl border border-slate-200 transition-colors flex items-center justify-center gap-2">
-                   Detailed Log <span className="material-symbols-outlined text-sm">arrow_forward</span>
+               
+               <div className="shrink-0 flex items-center mt-6 md:mt-0 justify-center z-10">
+                 <Link to={`/malware-dashboard?domain=${encodeURIComponent(domain)}`} className="px-8 py-3 bg-rose-50 hover:bg-rose-100 text-rose-700 text-sm font-bold rounded-xl border border-rose-200 transition-colors flex items-center justify-center gap-2 w-full md:w-auto">
+                   Detailed Report <span className="material-symbols-outlined text-sm">arrow_forward</span>
                  </Link>
                </div>
              </div>
