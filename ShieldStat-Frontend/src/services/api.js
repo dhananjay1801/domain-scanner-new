@@ -26,10 +26,10 @@ async function request(endpoint, { method = "GET", body, token, signal } = {}) {
 export function loginUser(email, password, captcha_token) {
   return request("/auth/login", {
     method: "POST",
-    body: { 
-      email, 
-      password, 
-      ...(captcha_token ? { captcha_token } : {}) 
+    body: {
+      email,
+      password,
+      ...(captcha_token ? { captcha_token } : {})
     },
   });
 }
@@ -37,11 +37,11 @@ export function loginUser(email, password, captcha_token) {
 export function registerUser(email, password, domain, captcha_token) {
   return request("/auth/register", {
     method: "POST",
-    body: { 
-      email, 
-      password, 
-      domain, 
-      ...(captcha_token ? { captcha_token } : {}) 
+    body: {
+      email,
+      password,
+      domain,
+      ...(captcha_token ? { captcha_token } : {})
     },
   });
 }
@@ -67,7 +67,7 @@ export function resetPasswordWithOtp(email, otp, new_password) {
 export function resetPassword(old_password, new_password, token) {
   return request("/auth/reset-password", {
     method: "POST",
-    body: { old_password , new_password },
+    body: { old_password, new_password },
     token,
   });
 }
@@ -220,3 +220,10 @@ export function abortMalwareScan(scanId, token) {
     token,
   });
 }
+
+// ─── Assessment ───────────────────────────────────────────────────────────────
+
+export function getAssessmentQuestions() {
+  return request("/questions/");
+}
+

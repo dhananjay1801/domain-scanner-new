@@ -1,18 +1,20 @@
 import React, { useMemo, useState, useEffect } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import {
+  ASSESSMENT_CATEGORIES_METADATA,
   ASSESSMENT_CATEGORIES,
   getInitialSelections,
   getMetricColor,
   getMetricTextColor,
   getRadarPoint,
 } from "../utils/assessmentUtils";
-import { getScore, getMalwareReport, getProfile } from "../services/api";
-import { 
-  FileText, Link2, Globe, Zap, ShieldAlert, CheckCircle2, 
-  Bug, ShieldCheck, ArrowRight, Shield, AlertTriangle, 
-  Search, AlertCircle, Ban, Activity, Cpu, Layers, 
-  Clock, HardDrive, XCircle, MousePointer2 
+import { getScore, getMalwareReport, getProfile, getAssessmentQuestions } from "../services/api";
+
+import {
+  FileText, Link2, Globe, Zap, ShieldAlert, CheckCircle2,
+  Bug, ShieldCheck, ArrowRight, Shield, AlertTriangle,
+  Search, AlertCircle, Ban, Activity, Cpu, Layers,
+  Clock, HardDrive, XCircle, MousePointer2
 } from "lucide-react";
 
 function normalizeDomain(domain) {
@@ -60,7 +62,7 @@ function extractMalwareSummary(report) {
   const cleanFiles = totalFiles - maliciousCount - suspiciousCount;
   const linkUrls = Object.keys(report.links || {});
   const domainEntries = Object.keys(report.domains || {});
-  
+
   return {
     totalFiles,
     cleanFiles,
@@ -80,11 +82,10 @@ function DomainTab({ domain, isActive, onClick }) {
     <button
       type="button"
       onClick={onClick}
-      className={`flex-shrink-0 inline-flex items-center gap-2 rounded-lg border px-4 py-2.5 text-sm font-bold transition-all active:scale-95 ${
-        isActive
+      className={`flex-shrink-0 inline-flex items-center gap-2 rounded-lg border px-4 py-2.5 text-sm font-bold transition-all active:scale-95 ${isActive
           ? "border-indigo-600 bg-indigo-600 text-white shadow-sm"
           : "border-slate-200 bg-white text-slate-700 hover:border-indigo-200 hover:bg-indigo-50 hover:text-indigo-700"
-      }`}
+        }`}
     >
       <span
         className="material-symbols-outlined text-base"
@@ -100,80 +101,94 @@ function DomainTab({ domain, isActive, onClick }) {
 function ScanDashboard() {
   const [searchParams, setSearchParams] = useSearchParams();
   const [knownDomains, setKnownDomains] = useState([]);
-  
+
   const domainParam = searchParams.get("domain");
   const domain = normalizeDomain(domainParam || knownDomains[0] || "");
-  
   const [data, setData] = useState(null);
   const [malware, setMalware] = useState(null);
+  const [questions, setQuestions] = useState([]);
+  const [selections, setSelections] = useState({});
   const [loading, setLoading] = useState(true);
 
   // Load profile and default domain
   useEffect(() => {
     const token = localStorage.getItem("token");
     if (!token) return;
-    
+
     getProfile(token).then((profile) => {
       const profileDomains = dedupeDomains(normalizeProfileDomains(profile?.domain));
       setKnownDomains(profileDomains);
-      
+
       if (!domainParam && profileDomains.length > 0) {
         setSearchParams({ domain: profileDomains[0] }, { replace: true });
       }
-    }).catch(() => {});
+    }).catch(() => { });
   }, [domainParam, setSearchParams]);
 
-  // Load scan data
+  // Load scan data, questions and local selections
   useEffect(() => {
-    if (!domain) {
-       setLoading(false);
-       return;
-    }
-    
     const token = localStorage.getItem("token");
-    if (!token) {
-      setLoading(false);
-      return;
-    }
-    
+    const savedSelections = getInitialSelections();
+    setSelections(savedSelections);
+
     setLoading(true);
     Promise.all([
-      getScore(domain, token).catch(() => null),
-      getMalwareReport(domain, token).catch(() => null)
-    ]).then(([scoreData, malwareData]) => {
+      domain ? getScore(domain, token).catch(() => null) : Promise.resolve(null),
+      domain ? getMalwareReport(domain, token).catch(() => null) : Promise.resolve(null),
+      getAssessmentQuestions().catch(() => [])
+    ]).then(([scoreData, malwareData, questionsData]) => {
       setData(scoreData);
       setMalware(malwareData);
+      setQuestions(questionsData || []);
       setLoading(false);
     });
   }, [domain]);
 
-  // ORIGINAL ASSESSMENT METRICS - KEEP THE OLD MOCK FOR ASSESSMENT CARD
+  // ASSESSMENT METRICS
   const metrics = useMemo(() => {
-    const selections = getInitialSelections();
-    return ASSESSMENT_CATEGORIES.map((category) => {
-      const selectedCount = category.items.filter(
-        (item) => selections[category.id]?.[item.id],
-      ).length;
-      const value = Math.round((selectedCount / category.items.length) * 100);
+    if (!questions.length) return ASSESSMENT_CATEGORIES.map(c => ({ ...c, value: 0 }));
+
+    const categories = Array.from(new Set(questions.map((q) => q.category_id)));
+
+    return categories.map((catId) => {
+      const catQuestions = questions.filter((q) => q.category_id === catId);
+      const metadata = ASSESSMENT_CATEGORIES_METADATA[catId] || {
+        label: `Category ${catId}`,
+        axisLabel: `Cat ${catId}`,
+        icon: "help",
+      };
+
+      let totalScore = 0;
+      let availableMaxScore = 0;
+
+      catQuestions.forEach((q) => {
+        const selection = selections[q._id];
+        const isIgnored = selections[`ignored_${q._id}`];
+
+        if (!isIgnored) {
+          availableMaxScore += 3;
+          if (selection !== undefined) {
+            const selectedOption = q.options.find((opt) => opt.option_key === selection);
+            if (selectedOption) totalScore += selectedOption.score;
+          }
+        }
+      });
+
+      const value = availableMaxScore > 0 ? Math.round((totalScore / availableMaxScore) * 100) : 0;
 
       return {
-        ...category,
-        selectedCount,
+        id: catId,
+        ...metadata,
         value,
       };
     });
-  }, []);
+  }, [questions, selections]);
 
   const radarPoints = useMemo(() => {
-    if (metrics.length < 4) return "";
-    const [network, application, dns, endpoint] = metrics;
-    return [
-      getRadarPoint(network.value, "top"),
-      getRadarPoint(application.value, "right"),
-      getRadarPoint(dns.value, "bottom"),
-      getRadarPoint(endpoint.value, "left"),
-    ].join(" ");
+    if (metrics.length < 3) return "";
+    return metrics.map((m, i) => getRadarPoint(m.value, i, metrics.length)).join(" ");
   }, [metrics]);
+  ;
 
   if (loading) {
     return (
@@ -188,7 +203,7 @@ function ScanDashboard() {
 
   // Derived real data
   const score = data?.domain_score ?? 0;
-  
+
   let grade = { label: "At Risk", color: "text-red-600", bg: "bg-red-600" };
   if (score >= 80) grade = { label: "Optimal", color: "text-emerald-600", bg: "bg-emerald-600" };
   else if (score >= 60) grade = { label: "Fair", color: "text-amber-600", bg: "bg-amber-600" };
@@ -212,14 +227,14 @@ function ScanDashboard() {
   }
   const primaryIp = rootIp || data?.ips?.[0] || "Unknown";
   const domainName = data?.host?.domain || domain || "No Domain Selected";
-  
+
   // Calculate malware summary
   const mw = extractMalwareSummary(malware?.report);
 
   return (
     <div className="min-h-screen bg-surface relative">
       <main className="flex-1 overflow-y-auto pt-8 pb-16 px-12 max-w-[1600px] mx-auto w-full">
-        
+
         {/* ── Domain nav ── */}
         {knownDomains.length > 0 && (
           <section className="mb-6">
@@ -249,10 +264,10 @@ function ScanDashboard() {
         </header>
 
         <section className="flex flex-col gap-6 mb-12">
-          
+
           {/* 1. Assessment Overview Card (Uses Original Static Mock) */}
           <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-200 flex flex-col xl:flex-row items-center xl:items-stretch gap-8 relative">
-            
+
             {/* Left: Spider Net */}
             <div className="w-full xl:w-64 shrink-0 border border-slate-100 rounded-xl p-5 flex flex-col items-center justify-center bg-slate-50/50">
               <div className="w-full flex items-center justify-center xl:justify-start gap-2 mb-2">
@@ -262,26 +277,30 @@ function ScanDashboard() {
                 </h2>
               </div>
               <div className="relative flex aspect-square w-full max-w-[150px] items-center justify-center">
-                <div className="absolute left-1/2 top-0 -translate-x-1/2 text-[8px] font-bold uppercase tracking-widest text-slate-500">
-                  {metrics[0].axisLabel}
-                </div>
-                <div className="absolute right-0 top-1/2 translate-x-2 -translate-y-1/2 text-[8px] font-bold uppercase tracking-widest text-slate-500">
-                  {metrics[1].axisLabel}
-                </div>
-                <div className="absolute bottom-0 left-1/2 -translate-x-1/2 text-[8px] font-bold uppercase tracking-widest text-slate-500">
-                  {metrics[2].axisLabel}
-                </div>
-                <div className="absolute left-0 top-1/2 -translate-x-2 -translate-y-1/2 text-[8px] font-bold uppercase tracking-widest text-slate-500">
-                  {metrics[3].axisLabel}
-                </div>
+                {metrics.map((m, i) => {
+                  const [x, y] = getRadarPoint(125, i, metrics.length).split(",");
+                  return (
+                    <div
+                      key={m.id}
+                      className="absolute text-[7px] font-bold uppercase tracking-widest text-slate-500 text-center w-16"
+                      style={{ left: `${x / 4}%`, top: `${y / 4}%`, transform: 'translate(-50%, -50%)' }}
+                    >
+                      {m.axisLabel}
+                    </div>
+                  );
+                })}
 
                 <svg className="h-full w-full" viewBox="0 0 400 400">
-                  <polygon points="200,40 360,200 200,360 40,200" fill="none" stroke="#e2e8f0" strokeDasharray="4" />
-                  <polygon points="200,80 320,200 200,320 80,200" fill="none" stroke="#e2e8f0" strokeDasharray="4" />
-                  <polygon points="200,120 280,200 200,280 120,200" fill="none" stroke="#e2e8f0" strokeDasharray="4" />
-                  <polygon points="200,160 240,200 200,240 160,200" fill="none" stroke="#e2e8f0" strokeDasharray="4" />
-                  <line x1="200" y1="40" x2="200" y2="360" stroke="#e2e8f0" />
-                  <line x1="40" y1="200" x2="360" y2="200" stroke="#e2e8f0" />
+                  <polygon points="200,40 338,280 62,280" fill="none" stroke="#94a3b8" strokeDasharray="4" />
+                  <polygon points="200,80 304,260 96,260" fill="none" stroke="#94a3b8" strokeDasharray="4" />
+                  <polygon points="200,120 270,240 130,240" fill="none" stroke="#94a3b8" strokeDasharray="4" />
+
+                  {metrics.map((_, i) => {
+                    const [x, y] = getRadarPoint(100, i, metrics.length).split(",");
+                    return (
+                      <line key={i} x1="200" y1="200" x2={x} y2={y} stroke="#94a3b8" />
+                    );
+                  })}
 
                   <polygon
                     points={radarPoints}
@@ -292,9 +311,9 @@ function ScanDashboard() {
 
                   {radarPoints.split(" ").map((point, index) => {
                     const [cx, cy] = point.split(",");
-                    const value = metrics[index].value;
+                    const value = metrics[index]?.value || 0;
                     const fill = value >= 55 ? "#4f46e5" : "#e11d48";
-                    return <circle key={metrics[index].id} cx={cx} cy={cy} r="5" fill={fill} />;
+                    return <circle key={index} cx={cx} cy={cy} r="4" fill={fill} />;
                   })}
                 </svg>
               </div>
@@ -303,10 +322,10 @@ function ScanDashboard() {
             {/* Middle: Metric Breakdown */}
             <div className="flex-1 w-full flex flex-col justify-center py-2">
               <div className="inline-flex items-center gap-2 px-0 py-1 text-slate-600 text-[10px] font-bold uppercase tracking-widest mb-4">
-                <span className="w-1.5 h-1.5 bg-indigo-600 rounded-full" /> 
+                <span className="w-1.5 h-1.5 bg-indigo-600 rounded-full" />
                 Assessment Control Domains
               </div>
-              
+
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-12 gap-y-6">
                 {metrics.map((metric) => (
                   <div key={metric.id}>
@@ -330,7 +349,7 @@ function ScanDashboard() {
                 ))}
               </div>
             </div>
-            
+
             {/* Right: Full Info Button */}
             <div className="shrink-0 w-full xl:w-auto flex items-center mt-6 xl:mt-0 justify-center">
               <Link to="/assessment" className="px-8 py-3 bg-slate-50 hover:bg-slate-100 text-indigo-600 text-sm font-bold rounded-xl border border-slate-200 transition-colors flex items-center justify-center gap-2 w-full xl:w-auto">
@@ -341,74 +360,74 @@ function ScanDashboard() {
 
           {/* 2. Regular Scan Card (Horizontal) */}
           {!data ? (
-             <div className="bg-white rounded-2xl p-10 shadow-sm border border-slate-200 flex flex-col items-center justify-center relative text-center">
-               <span className="material-symbols-outlined text-5xl text-slate-300 mb-3">radar</span>
-               <h3 className="text-xl font-bold text-slate-800">Scan Required</h3>
-               <p className="text-slate-500 text-sm mt-1 max-w-sm">We couldn't find any vulnerability scan records for <span className="font-bold">{domainName}</span>.</p>
-               <Link to="/scan" className="mt-5 px-6 py-2.5 bg-indigo-600 text-white font-bold rounded-lg hover:bg-indigo-700 transition shadow-sm">
-                 Initiate Domain Scan
-               </Link>
-             </div>
+            <div className="bg-white rounded-2xl p-10 shadow-sm border border-slate-200 flex flex-col items-center justify-center relative text-center">
+              <span className="material-symbols-outlined text-5xl text-slate-300 mb-3">radar</span>
+              <h3 className="text-xl font-bold text-slate-800">Scan Required</h3>
+              <p className="text-slate-500 text-sm mt-1 max-w-sm">We couldn't find any vulnerability scan records for <span className="font-bold">{domainName}</span>.</p>
+              <Link to="/scan" className="mt-5 px-6 py-2.5 bg-indigo-600 text-white font-bold rounded-lg hover:bg-indigo-700 transition shadow-sm">
+                Initiate Domain Scan
+              </Link>
+            </div>
           ) : (
-             <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-200 flex flex-col md:flex-row items-stretch gap-8 relative">
-               <div className="md:w-64 shrink-0 border border-slate-100 rounded-xl p-5 flex flex-col justify-between">
-                 <div>
-                   <div className="flex justify-between items-start mb-2">
-                     <span className="text-[10px] font-bold uppercase tracking-widest text-slate-500">Security Grade</span>
-                     <span className={`material-symbols-outlined ${grade.color} text-sm`} style={{ fontVariationSettings: `"FILL" 1` }}>
-                       {score >= 60 ? "verified_user" : "warning"}
-                     </span>
-                   </div>
-                   <div className="flex items-baseline gap-1 mb-2">
-                     <h2 className={`text-5xl font-extrabold font-headline tracking-tighter ${grade.color}`}>{score}</h2>
-                     <span className="text-lg text-slate-400 font-medium">/100</span>
-                   </div>
-                 </div>
-                 <div className="mt-4">
-                   <div className="flex-grow h-1.5 bg-slate-100 rounded-full overflow-hidden mb-1.5">
-                     <div className={`h-full ${grade.bg} rounded-full`} style={{ width: `${score}%` }} />
-                   </div>
-                   <div className="text-right">
-                     <span className={`font-bold font-headline uppercase tracking-widest text-[10px] ${grade.color}`}>{grade.label}</span>
-                   </div>
-                 </div>
-               </div>
+            <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-200 flex flex-col md:flex-row items-stretch gap-8 relative">
+              <div className="md:w-64 shrink-0 border border-slate-100 rounded-xl p-5 flex flex-col justify-between">
+                <div>
+                  <div className="flex justify-between items-start mb-2">
+                    <span className="text-[10px] font-bold uppercase tracking-widest text-slate-500">Security Grade</span>
+                    <span className={`material-symbols-outlined ${grade.color} text-sm`} style={{ fontVariationSettings: `"FILL" 1` }}>
+                      {score >= 60 ? "verified_user" : "warning"}
+                    </span>
+                  </div>
+                  <div className="flex items-baseline gap-1 mb-2">
+                    <h2 className={`text-5xl font-extrabold font-headline tracking-tighter ${grade.color}`}>{score}</h2>
+                    <span className="text-lg text-slate-400 font-medium">/100</span>
+                  </div>
+                </div>
+                <div className="mt-4">
+                  <div className="flex-grow h-1.5 bg-slate-100 rounded-full overflow-hidden mb-1.5">
+                    <div className={`h-full ${grade.bg} rounded-full`} style={{ width: `${score}%` }} />
+                  </div>
+                  <div className="text-right">
+                    <span className={`font-bold font-headline uppercase tracking-widest text-[10px] ${grade.color}`}>{grade.label}</span>
+                  </div>
+                </div>
+              </div>
 
-               <div className="flex-1 flex flex-col justify-center py-2">
-                 <div className="inline-flex items-center gap-2 px-0 py-1 text-slate-600 text-[10px] font-bold uppercase tracking-widest mb-1">
-                   <span className="w-1.5 h-1.5 bg-indigo-600 rounded-full" /> 
-                   Active Scan Result
-                 </div>
-                 <h3 className="text-4xl md:text-5xl font-extrabold font-headline tracking-tight text-slate-900 mb-6 truncate" title={domainName}>
-                   {domainName}
-                 </h3>
+              <div className="flex-1 flex flex-col justify-center py-2">
+                <div className="inline-flex items-center gap-2 px-0 py-1 text-slate-600 text-[10px] font-bold uppercase tracking-widest mb-1">
+                  <span className="w-1.5 h-1.5 bg-indigo-600 rounded-full" />
+                  Active Scan Result
+                </div>
+                <h3 className="text-4xl md:text-5xl font-extrabold font-headline tracking-tight text-slate-900 mb-6 truncate" title={domainName}>
+                  {domainName}
+                </h3>
 
-                 <div className="flex flex-wrap gap-x-12 gap-y-6">
-                   <div className="flex flex-col">
-                     <span className="text-[10px] uppercase tracking-widest text-slate-400 font-bold mb-1 border-b border-slate-100 pb-1">IP Address</span>
-                     <span className="text-sm font-semibold text-slate-800">{primaryIp}</span>
-                   </div>
-                   <div className="flex flex-col">
-                     <span className="text-[10px] uppercase tracking-widest text-slate-400 font-bold mb-1 border-b border-slate-100 pb-1">Total Findings</span>
-                     <span className="text-sm font-semibold text-slate-800">
-                        {data?.categorized_vulnerabilities 
-                           ? Object.values(data.categorized_vulnerabilities).reduce((acc, cat) => acc + Object.keys(cat).length, 0)
-                           : 0}
-                     </span>
-                   </div>
-                   <div className="flex flex-col">
-                     <span className="text-[10px] uppercase tracking-widest text-slate-400 font-bold mb-1 border-b border-slate-100 pb-1">Last Updated</span>
-                     <span className="text-sm font-semibold text-slate-800">Today</span>
-                   </div>
-                 </div>
-               </div>
-               
-               <div className="shrink-0 flex items-center mt-6 md:mt-0 justify-center">
-                 <Link to={`/scan-details?domain=${encodeURIComponent(domain)}`} className="px-8 py-3 bg-slate-50 hover:bg-slate-100 text-indigo-700 text-sm font-bold rounded-xl border border-slate-200 transition-colors flex items-center justify-center gap-2 w-full md:w-auto">
-                   Detailed Report <span className="material-symbols-outlined text-sm">arrow_forward</span>
-                 </Link>
-               </div>
-             </div>
+                <div className="flex flex-wrap gap-x-12 gap-y-6">
+                  <div className="flex flex-col">
+                    <span className="text-[10px] uppercase tracking-widest text-slate-400 font-bold mb-1 border-b border-slate-100 pb-1">IP Address</span>
+                    <span className="text-sm font-semibold text-slate-800">{primaryIp}</span>
+                  </div>
+                  <div className="flex flex-col">
+                    <span className="text-[10px] uppercase tracking-widest text-slate-400 font-bold mb-1 border-b border-slate-100 pb-1">Total Findings</span>
+                    <span className="text-sm font-semibold text-slate-800">
+                      {data?.categorized_vulnerabilities
+                        ? Object.values(data.categorized_vulnerabilities).reduce((acc, cat) => acc + Object.keys(cat).length, 0)
+                        : 0}
+                    </span>
+                  </div>
+                  <div className="flex flex-col">
+                    <span className="text-[10px] uppercase tracking-widest text-slate-400 font-bold mb-1 border-b border-slate-100 pb-1">Last Updated</span>
+                    <span className="text-sm font-semibold text-slate-800">Today</span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="shrink-0 flex items-center mt-6 md:mt-0 justify-center">
+                <Link to={`/scan-details?domain=${encodeURIComponent(domain)}`} className="px-8 py-3 bg-slate-50 hover:bg-slate-100 text-indigo-700 text-sm font-bold rounded-xl border border-slate-200 transition-colors flex items-center justify-center gap-2 w-full md:w-auto">
+                  Detailed Report <span className="material-symbols-outlined text-sm">arrow_forward</span>
+                </Link>
+              </div>
+            </div>
           )}
 
           {/* 3. Malware Scan Card (Horizontal) */}
@@ -420,41 +439,41 @@ function ScanDashboard() {
               <Link to="/malware" className="mt-5 px-6 py-2.5 bg-rose-600 text-white font-bold rounded-lg hover:bg-rose-700 transition shadow-sm">
                 Initiate Malware Scan
               </Link>
-             </div>
+            </div>
           ) : (
-             <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-200 flex flex-col md:flex-row items-stretch gap-8 relative overflow-hidden">
-               {/* Decorative background accent */}
-               <div className="absolute top-0 right-0 w-32 h-32 bg-rose-50 rounded-full blur-3xl -mr-16 -mt-16 opacity-50" />
+            <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-200 flex flex-col md:flex-row items-stretch gap-8 relative overflow-hidden">
+              {/* Decorative background accent */}
+              <div className="absolute top-0 right-0 w-32 h-32 bg-rose-50 rounded-full blur-3xl -mr-16 -mt-16 opacity-50" />
 
-               <div className="flex-1 flex flex-col justify-center py-2 z-10">
-                  <div className="inline-flex items-center gap-8 text-rose-600 text-[10px] font-bold uppercase tracking-widest mb-1">
-                    <div className="flex items-center gap-2">
-                      <span className="w-1.5 h-1.5 bg-rose-600 rounded-full" /> 
-                      Malware Analytics Summary
-                    </div>
-                    <span className="opacity-70">| &nbsp; Last Scan: {mw.timestr}</span>
+              <div className="flex-1 flex flex-col justify-center py-2 z-10">
+                <div className="inline-flex items-center gap-8 text-rose-600 text-[10px] font-bold uppercase tracking-widest mb-1">
+                  <div className="flex items-center gap-2">
+                    <span className="w-1.5 h-1.5 bg-rose-600 rounded-full" />
+                    Malware Analytics Summary
                   </div>
-                 
-                 <h3 className="text-4xl md:text-5xl font-extrabold font-headline tracking-tight text-slate-900 mb-6 truncate" title={domainName}>
-                   {domainName}
-                 </h3>
-                 
-                 <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-3">
-                    <StatCard label="Total Files" value={mw.totalFiles} icon={FileText} />
-                    <StatCard label="Total Links" value={mw.linksCount} icon={Link2} colorClass="bg-blue-50 text-blue-600" borderClass="border-blue-100" />
-                    <StatCard label="Domains" value={mw.domainsCount} icon={Globe} colorClass="bg-purple-50 text-purple-600" borderClass="border-purple-100" />
-                    <StatCard label="Smart Alerts" value={mw.alertsCount} icon={Zap} colorClass="bg-amber-50 text-amber-600" borderClass="border-amber-100" />
-                    <StatCard label="Blacklist DBs" value={mw.blacklistCount} icon={ShieldAlert} colorClass="bg-indigo-50 text-indigo-600" borderClass="border-indigo-100" />
-                    <StatCard label="Clean Files" value={mw.cleanFiles} icon={CheckCircle2} colorClass="bg-emerald-50 text-emerald-600" borderClass="border-emerald-100" />
-                 </div>
-               </div>
-               
-               <div className="shrink-0 flex items-center mt-6 md:mt-0 justify-center z-10">
-                 <Link to={`/malware-dashboard?domain=${encodeURIComponent(domain)}`} className="px-8 py-3 bg-rose-50 hover:bg-rose-100 text-rose-700 text-sm font-bold rounded-xl border border-rose-200 transition-colors flex items-center justify-center gap-2 w-full md:w-auto">
-                   Detailed Report <span className="material-symbols-outlined text-sm">arrow_forward</span>
-                 </Link>
-               </div>
-             </div>
+                  <span className="opacity-70">| &nbsp; Last Scan: {mw.timestr}</span>
+                </div>
+
+                <h3 className="text-4xl md:text-5xl font-extrabold font-headline tracking-tight text-slate-900 mb-6 truncate" title={domainName}>
+                  {domainName}
+                </h3>
+
+                <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-3">
+                  <StatCard label="Total Files" value={mw.totalFiles} icon={FileText} />
+                  <StatCard label="Total Links" value={mw.linksCount} icon={Link2} colorClass="bg-blue-50 text-blue-600" borderClass="border-blue-100" />
+                  <StatCard label="Domains" value={mw.domainsCount} icon={Globe} colorClass="bg-purple-50 text-purple-600" borderClass="border-purple-100" />
+                  <StatCard label="Smart Alerts" value={mw.alertsCount} icon={Zap} colorClass="bg-amber-50 text-amber-600" borderClass="border-amber-100" />
+                  <StatCard label="Blacklist DBs" value={mw.blacklistCount} icon={ShieldAlert} colorClass="bg-indigo-50 text-indigo-600" borderClass="border-indigo-100" />
+                  <StatCard label="Clean Files" value={mw.cleanFiles} icon={CheckCircle2} colorClass="bg-emerald-50 text-emerald-600" borderClass="border-emerald-100" />
+                </div>
+              </div>
+
+              <div className="shrink-0 flex items-center mt-6 md:mt-0 justify-center z-10">
+                <Link to={`/malware-dashboard?domain=${encodeURIComponent(domain)}`} className="px-8 py-3 bg-rose-50 hover:bg-rose-100 text-rose-700 text-sm font-bold rounded-xl border border-rose-200 transition-colors flex items-center justify-center gap-2 w-full md:w-auto">
+                  Detailed Report <span className="material-symbols-outlined text-sm">arrow_forward</span>
+                </Link>
+              </div>
+            </div>
           )}
         </section>
 

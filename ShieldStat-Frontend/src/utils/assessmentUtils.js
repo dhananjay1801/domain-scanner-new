@@ -1,126 +1,51 @@
-export const ASSESSMENT_CATEGORIES = [
-  {
-    id: "network",
-    label: "Network Security",
-    axisLabel: "Network",
-    icon: "router",
+export const ASSESSMENT_CATEGORIES_METADATA = {
+  1: {
+    id: 1,
+    label: "Asset & Access Management",
+    axisLabel: "Asset & Access",
+    icon: "shield_person",
     accent: {
       button: "bg-cyan-500 text-white",
       pill: "bg-cyan-100 text-cyan-700",
+      border: "border-cyan-200",
     },
-    items: [
-      {
-        id: "firewall",
-        label: "Firewall policy review",
-        detail: "Inbound rules are restricted to approved ports and trusted IP ranges.",
-      },
-      {
-        id: "segmentation",
-        label: "Network segmentation",
-        detail: "Critical services are isolated from public-facing systems.",
-      },
-      {
-        id: "monitoring",
-        label: "Traffic monitoring",
-        detail: "Suspicious lateral movement triggers alerts in real time.",
-      },
-    ],
   },
-  {
-    id: "application",
-    label: "Application Security",
-    axisLabel: "Application",
-    icon: "code",
+  2: {
+    id: 2,
+    label: "Network & Data Protection",
+    axisLabel: "Network & Data",
+    icon: "network_check",
     accent: {
       button: "bg-violet-500 text-white",
       pill: "bg-violet-100 text-violet-700",
+      border: "border-violet-200",
     },
-    items: [
-      {
-        id: "sast",
-        label: "Secure code checks",
-        detail: "Pull requests are scanned before deployment to production.",
-      },
-      {
-        id: "auth",
-        label: "Authentication hardening",
-        detail: "MFA and strong session controls are enforced for privileged users.",
-      },
-      {
-        id: "deps",
-        label: "Dependency hygiene",
-        detail: "Outdated packages are reviewed and patched on a regular cadence.",
-      },
-    ],
   },
-  {
-    id: "dns",
-    label: "DNS Health",
-    axisLabel: "DNS Health",
-    icon: "dns",
+  3: {
+    id: 3,
+    label: "Governance & Response",
+    axisLabel: "Governance",
+    icon: "fact_check",
     accent: {
       button: "bg-emerald-500 text-white",
       pill: "bg-emerald-100 text-emerald-700",
+      border: "border-emerald-200",
     },
-    items: [
-      {
-        id: "records",
-        label: "Record inventory",
-        detail: "Unused or stale DNS records are removed from active zones.",
-      },
-      {
-        id: "dmarc",
-        label: "Email protections",
-        detail: "SPF, DKIM, and DMARC are configured for domain integrity.",
-      },
-      {
-        id: "failover",
-        label: "Resolver resilience",
-        detail: "DNS failover and uptime monitoring are configured and tested.",
-      },
-    ],
   },
-  {
-    id: "endpoint",
-    label: "Endpoint Security",
-    axisLabel: "Endpoint",
-    icon: "devices",
-    accent: {
-      button: "bg-rose-500 text-white",
-      pill: "bg-rose-100 text-rose-700",
-    },
-    items: [
-      {
-        id: "edr",
-        label: "EDR coverage",
-        detail: "All managed laptops and servers report to the endpoint security console.",
-      },
-      {
-        id: "patching",
-        label: "Patch compliance",
-        detail: "Critical OS and browser patches are applied within SLA.",
-      },
-      {
-        id: "encryption",
-        label: "Disk encryption",
-        detail: "Portable workstations use enforced full-disk encryption.",
-      },
-    ],
-  },
-];
+};
+
+export const ASSESSMENT_CATEGORIES = Object.values(ASSESSMENT_CATEGORIES_METADATA);
 
 export function getInitialSelections() {
-  return ASSESSMENT_CATEGORIES.reduce((categoryAccumulator, category) => {
-    categoryAccumulator[category.id] = category.items.reduce(
-      (itemAccumulator, item, index) => {
-        // Initial state sets 2 items as true for demo purposes to give non-trivial score
-        itemAccumulator[item.id] = index < 2;
-        return itemAccumulator;
-      },
-      {},
-    );
-    return categoryAccumulator;
-  }, {});
+  const saved = localStorage.getItem("assessment_selections");
+  if (saved) {
+    try {
+      return JSON.parse(saved);
+    } catch (e) {
+      console.error("Failed to parse saved selections", e);
+    }
+  }
+  return {};
 }
 
 export function getMetricColor(value) {
@@ -140,13 +65,15 @@ export function getMetricTextColor(value) {
 export function getMetricStatus(value) {
   if (value >= 80) return "Secure";
   if (value >= 55) return "Good";
-  return "At Risk";
+  if (value > 0) return "At Risk";
+  return "Not Started";
 }
 
 export function getMetricStatusClasses(value) {
   if (value >= 80) return "border-emerald-100 bg-emerald-50 text-emerald-700";
   if (value >= 55) return "border-indigo-100 bg-indigo-50 text-indigo-700";
-  return "border-rose-100 bg-rose-50 text-rose-700";
+  if (value > 0) return "border-rose-100 bg-rose-50 text-rose-700";
+  return "border-slate-200 bg-slate-100 text-slate-500";
 }
 
 export function getCategoryCardClasses(isActive) {
@@ -154,13 +81,36 @@ export function getCategoryCardClasses(isActive) {
   return "border-slate-200 bg-white text-slate-900 hover:-translate-y-0.5 hover:border-indigo-200 hover:shadow-md";
 }
 
-export function getRadarPoint(value, axis) {
+export function getRadarPoint(value, index, total = 3) {
   const center = 200;
   const maxRadius = 160;
   const ratio = value / 100;
+  const radius = maxRadius * ratio;
 
-  if (axis === "top") return `${center},${center - maxRadius * ratio}`;
-  if (axis === "right") return `${center + maxRadius * ratio},${center}`;
-  if (axis === "bottom") return `${center},${center + maxRadius * ratio}`;
-  return `${center - maxRadius * ratio},${center}`;
+  // For 3 points (Triangle):
+  // 0: Top (270 deg)
+  // 1: Bottom Right (30 deg)
+  // 2: Bottom Left (150 deg)
+
+  const angleDeg = (index * (360 / total)) - 90;
+  const angleRad = (Math.PI / 180) * angleDeg;
+
+  const x = center + radius * Math.cos(angleRad);
+  const y = center + radius * Math.sin(angleRad);
+
+  return `${x},${y}`;
 }
+
+export function getRadarGridPoints(radius, total = 3) {
+  const center = 200;
+  const points = [];
+  for (let i = 0; i < total; i++) {
+    const angleDeg = (i * (360 / total)) - 90;
+    const angleRad = (Math.PI / 180) * angleDeg;
+    const x = center + radius * Math.cos(angleRad);
+    const y = center + radius * Math.sin(angleRad);
+    points.push(`${x},${y}`);
+  }
+  return points.join(" ");
+}
+
