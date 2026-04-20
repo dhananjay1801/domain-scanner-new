@@ -72,7 +72,7 @@ function AuthPage() {
       const data = await loginUser(email, password, captchaToken);
       localStorage.setItem("token", data.token);
       localStorage.setItem("user", JSON.stringify(data.user));
-      
+
       if (data.user?.role === "admin") {
         navigate("/admin");
       } else {
@@ -191,10 +191,10 @@ function AuthPage() {
 
   // ─── Titles & subtitles per view ──────────────────────────────────────────
   const titles = {
-    login:       { heading: "Welcome Back",       sub: "Authenticate to access your dashboard" },
-    signup:      { heading: "Create Account",      sub: "Join the ecosystem of digital trust" },
-    forgot:      { heading: "Forgot Password",     sub: "Enter your email to receive a reset OTP" },
-    "reset-otp": { heading: "Reset Password",      sub: "Enter the OTP sent to your email" },
+    login: { heading: "Welcome Back", sub: "Authenticate to access your dashboard" },
+    signup: { heading: "Create Account", sub: "Join the ecosystem of digital trust" },
+    forgot: { heading: "Forgot Password", sub: "Enter your email to receive a reset OTP" },
+    "reset-otp": { heading: "Reset Password", sub: "Enter the OTP sent to your email" },
   };
 
   const { heading, sub } = titles[view];
@@ -209,11 +209,11 @@ function AuthPage() {
           {/* Brand */}
           <div className="text-center mb-10">
             <div className="mb-6 flex justify-center">
-              <div className="bg-white p-4 rounded-xl shadow">
+              <div className="bg-white p-4 rounded-xl shadow dark:bg-slate-800">
                 <img 
                   src={isecurify_logo} 
-                  alt="Company Logo"
-                  className="rounded-xl h-12 w-auto object-contain"
+                  alt="isecurify"
+                  className="rounded-xl h-12 w-auto object-contain dark:invert dark:brightness-200"
                 />
               </div>
             </div>
@@ -331,7 +331,7 @@ function AuthPage() {
                   />
                 </div>
 
-                
+
 
                 <div className="grid md:grid-cols-2 gap-4">
                   <div className="relative">

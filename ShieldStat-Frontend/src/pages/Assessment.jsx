@@ -143,7 +143,7 @@ function Assessment() {
       </header>
 
       <div className="mb-10 grid grid-cols-1 gap-8 lg:grid-cols-4">
-        <div className="lg:col-span-2 flex flex-col items-center rounded-3xl border bg-white p-6 shadow-sm">
+        <div className="assessment-surface lg:col-span-2 flex flex-col items-center rounded-3xl border bg-white p-6 shadow-sm">
           <div className="mb-6 flex w-full items-center justify-between">
             <div>
               <h2 className="text-lg font-extrabold text-slate-900">
@@ -218,7 +218,7 @@ function Assessment() {
           </div>
         </div>
 
-        <div className="lg:col-span-2 rounded-3xl border bg-slate-50 p-8">
+        <div className="assessment-surface lg:col-span-2 rounded-3xl border bg-slate-50 p-8">
           <h2 className="mb-6 text-xl font-bold text-slate-900">
             Metric Breakdown
           </h2>

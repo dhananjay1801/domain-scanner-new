@@ -11,7 +11,7 @@ function LandingPage() {
 
   const handleSubmit = (event) => {
     event.preventDefault();
-    navigate("/auth", {replace: true});
+    navigate("/auth", { replace: true });
   }
 
   return (
@@ -20,18 +20,17 @@ function LandingPage() {
       <header className="fixed top-0 w-full z-50 glass-nav">
         <div className="flex justify-between items-center px-8 py-4 max-w-7xl mx-auto">
           <div className="flex items-center gap-3">
-            {/* Logo replaced */}
             <img
               src={logo}
-              alt="Company Logo"
-              className="h-10 w-auto object-contain"
+              alt="isecurify"
+              className="h-10 w-auto object-contain dark:invert dark:brightness-200"
             />
           </div>
 
           <nav className="flex items-center gap-8">
             <Link to="/auth">
               <button className="text-white editorial-gradient text-on-primary px-6 py-2.5 rounded-lg font-semibold shadow-lg hover:brightness-110 transition">
-                  LOGIN
+                LOGIN
               </button>
             </Link>
           </nav>

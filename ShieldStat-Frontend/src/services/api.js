@@ -214,9 +214,10 @@ export function getMalwareScanHistory(domain, token, signal) {
   return request(endpoint, { token, signal });
 }
 
-export function abortMalwareScan(scanId, token) {
-  return request(`/malware/abort/${scanId}`, {
+export function abortMalwareScan(domain, token) {
+  return request("/malware/abort", {
     method: "POST",
+    body: { domain },
     token,
   });
 }

@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react";
 import { Routes, Route } from "react-router-dom";
 
 import PublicLayout from "./layouts/PublicLayout";
@@ -19,6 +20,27 @@ import MalwareDashboard from "./pages/MalwareDashboard";
 import Profile from "./pages/Profile";
 
 function App() {
+  const [isDarkMode, setIsDarkMode] = useState(() => {
+    const savedTheme = localStorage.getItem("theme");
+    if (savedTheme) return savedTheme === "dark";
+
+    return window.matchMedia?.("(prefers-color-scheme: dark)").matches ?? false;
+  });
+
+  useEffect(() => {
+    const theme = isDarkMode ? "dark" : "light";
+    const root = document.documentElement;
+    const body = document.body;
+
+    root.classList.toggle("dark", isDarkMode);
+    root.classList.toggle("light", !isDarkMode);
+    body.classList.toggle("dark", isDarkMode);
+    body.classList.toggle("light", !isDarkMode);
+    root.dataset.theme = theme;
+    body.dataset.theme = theme;
+    localStorage.setItem("theme", theme);
+  }, [isDarkMode]);
+
   return (
     <Routes>
       <Route path="/" element={<PublicLayout />}>
@@ -29,7 +51,15 @@ function App() {
         <Route index element={<Auth />} />
       </Route>
 
-      <Route path="/" element={<DashboardLayout />}>
+      <Route
+        path="/"
+        element={
+          <DashboardLayout
+            isDarkMode={isDarkMode}
+            onToggleDarkMode={() => setIsDarkMode((current) => !current)}
+          />
+        }
+      >
         <Route path="scan-dashboard" element={<ScanDashboard />} />
         <Route path="scan-details" element={<ScanDetails />} />
         <Route path="scan" element={<Scan />} />
@@ -42,7 +72,15 @@ function App() {
       </Route>
 
       {/* Admin area uses its own layout */}
-      <Route path="/admin" element={<AdminLayout />}>
+      <Route
+        path="/admin"
+        element={
+          <AdminLayout
+            isDarkMode={isDarkMode}
+            onToggleDarkMode={() => setIsDarkMode((current) => !current)}
+          />
+        }
+      >
         <Route index element={<AdminUsers />} />
         <Route path="subscription" element={<AdminSubscription />} />
       </Route>

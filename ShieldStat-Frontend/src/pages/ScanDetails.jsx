@@ -921,16 +921,7 @@ function ScanDetails() {
                   )}
                 </div>
               </div>
-              <div className="flex gap-2">
-                <button className="px-4 py-2 bg-surface-container-low text-on-surface font-semibold text-sm rounded-lg flex items-center gap-2 hover:bg-surface-container-high transition-all">
-                  <span className="material-symbols-outlined text-sm">filter_list</span> Filter
-                </button>
-                <button onClick={handleDownloadReport} className="px-4 py-2 bg-surface-container-low text-on-surface font-semibold text-sm rounded-lg flex items-center gap-2 hover:bg-surface-container-high transition-all">
-                  <span className="material-symbols-outlined text-sm">download</span> Export
-                </button>
-              </div>
             </div>
-
             <div className="p-8 space-y-4">
               {/* IP Reputation panel */}
               {activeCat.isIpRep && (

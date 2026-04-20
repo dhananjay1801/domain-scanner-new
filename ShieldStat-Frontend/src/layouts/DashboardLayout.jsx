@@ -3,14 +3,16 @@ import { Outlet } from "react-router-dom";
 import Sidebar from "../components/Sidebar";
 import Navbar from "../components/Navbar";
 
-function DashboardLayout() {
+function DashboardLayout({ isDarkMode, onToggleDarkMode }) {
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
 
   return (
-    <div className="flex h-screen overflow-hidden bg-slate-100">
+    <div className="flex h-screen overflow-hidden bg-slate-100 dark:bg-slate-950">
       <Sidebar
         isOpen={isSidebarOpen}
         onToggle={() => setIsSidebarOpen((current) => !current)}
+        isDarkMode={isDarkMode}
+        onToggleDarkMode={onToggleDarkMode}
       />
 
       <div className="relative flex min-w-0 flex-1 flex-col">

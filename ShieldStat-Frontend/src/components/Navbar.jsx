@@ -29,7 +29,7 @@ function Navbar({ isSidebarOpen, onOpenSidebar }) {
       <button
         type="button"
         onClick={onOpenSidebar}
-        className="relative flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-700 shadow-md transition hover:border-indigo-200 hover:bg-indigo-50 hover:text-indigo-700"
+        className="relative flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-full border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 shadow-md transition hover:border-indigo-200 dark:hover:border-indigo-700 hover:bg-indigo-50 dark:hover:bg-indigo-900/40 hover:text-indigo-700 dark:hover:text-indigo-400"
         aria-label="Open sidebar"
       >
         <span className="material-symbols-outlined">keyboard_double_arrow_right</span>

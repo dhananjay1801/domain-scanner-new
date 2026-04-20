@@ -47,9 +47,9 @@ export default function ResetPasswordModal({ isOpen, onClose }) {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 p-4 backdrop-blur-sm">
-      <div className="bg-white rounded-xl shadow-xl w-full max-w-md overflow-hidden animate-fade-in-up">
-        <div className="flex justify-between items-center p-6 border-b border-gray-100">
-          <h2 className="text-xl font-bold text-gray-800">Reset Password</h2>
+      <div className="bg-white dark:bg-slate-900 rounded-xl shadow-xl w-full max-w-md overflow-hidden animate-fade-in-up border border-transparent dark:border-slate-700">
+        <div className="flex justify-between items-center p-6 border-b border-gray-100 dark:border-slate-700">
+          <h2 className="text-xl font-bold text-gray-800 dark:text-slate-100">Reset Password</h2>
           <button
             onClick={onClose}
             className="text-gray-400 hover:text-gray-600 transition-colors"
@@ -71,7 +71,7 @@ export default function ResetPasswordModal({ isOpen, onClose }) {
           )}
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
+            <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">
               Current Password
             </label>
             <input
@@ -84,7 +84,7 @@ export default function ResetPasswordModal({ isOpen, onClose }) {
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
+            <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">
               New Password
             </label>
             <input
@@ -97,7 +97,7 @@ export default function ResetPasswordModal({ isOpen, onClose }) {
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
+            <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">
               Confirm New Password
             </label>
             <input
@@ -113,7 +113,7 @@ export default function ResetPasswordModal({ isOpen, onClose }) {
             <button
               type="button"
               onClick={onClose}
-              className="px-4 py-2 text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-lg font-medium transition-colors"
+              className="px-4 py-2 text-gray-700 dark:text-slate-300 bg-gray-100 dark:bg-slate-800 hover:bg-gray-200 dark:hover:bg-slate-700 rounded-lg font-medium transition-colors"
             >
               Cancel
             </button>
