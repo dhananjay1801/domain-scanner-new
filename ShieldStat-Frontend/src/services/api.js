@@ -169,8 +169,16 @@ export function unblockUserByEmail(email, token) {
   });
 }
 
-export function getBlacklistedEmails(token) {
-  return request("/admin/blacklist", { token });
+/** GET /admin/blacklist — returns { blacklisted_emails: [{ email, blocked_by?, created_at? }, ...] } */
+export async function getBlacklistedEmails(token) {
+  const data = await request("/admin/blacklist", { token });
+  if (Array.isArray(data)) {
+    return { blacklisted_emails: data };
+  }
+  if (data && Array.isArray(data.blacklisted_emails)) {
+    return data;
+  }
+  return { blacklisted_emails: [] };
 }
 
 export function getScanSummaries(token) {
@@ -226,5 +234,15 @@ export function abortMalwareScan(domain, token) {
 
 export function getAssessmentQuestions() {
   return request("/questions/");
+}
+
+// ─── Fix (port verification queue) ───────────────────────────────────────────
+
+export function submitFix({ org_id, domain, fix_type, data }, token) {
+  return request("/fix/submit", {
+    method: "POST",
+    body: { org_id, domain, fix_type, data },
+    token,
+  });
 }
 

@@ -57,8 +57,10 @@ function AdminUsers() {
   const fetchBlacklist = async () => {
     setBlacklistLoading(true);
     try {
-      const data = await getBlacklistedEmails(localStorage.getItem("token"));
-      setBlacklisted(data?.blacklisted_emails || []);
+      const { blacklisted_emails } = await getBlacklistedEmails(
+        localStorage.getItem("token")
+      );
+      setBlacklisted(blacklisted_emails);
     } catch (err) {
       showNotification(err.message, "error");
     } finally {
@@ -437,15 +439,25 @@ function AdminUsers() {
                                 <thead className="bg-surface-container-low border-b border-surface-container sticky top-0 z-10">
                                     <tr>
                                         <th className="px-8 py-4 text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Email Address</th>
+                                        <th className="px-6 py-4 text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Blocked at</th>
                                         <th className="px-6 py-4 text-[10px] font-bold uppercase tracking-widest text-on-surface-variant text-right">Actions</th>
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y divide-surface-container">
-                                    {blacklisted.map((email) => (
+                                    {blacklisted.map((row) => {
+                                      const email =
+                                        typeof row === "string" ? row : row?.email;
+                                      const blockedAt =
+                                        typeof row === "object" && row?.created_at
+                                          ? new Date(row.created_at).toLocaleString()
+                                          : "—";
+                                      return (
                                         <tr key={email} className="hover:bg-red-50 transition-colors">
                                             <td className="px-8 py-4 font-semibold text-on-surface">{email}</td>
+                                            <td className="px-6 py-4 text-sm text-on-surface-variant">{blockedAt}</td>
                                             <td className="px-6 py-4 text-right">
                                                 <button 
+                                                   type="button"
                                                    onClick={() => handleUnblockEmail(email)}
                                                    className="px-4 py-2 bg-white border border-slate-200 text-sm font-semibold rounded-lg hover:border-emerald-200 hover:text-emerald-700 hover:bg-emerald-50 transition-all"
                                                 >
@@ -453,7 +465,8 @@ function AdminUsers() {
                                                 </button>
                                             </td>
                                         </tr>
-                                    ))}
+                                      );
+                                    })}
                                 </tbody>
                             </table>
                         </div>

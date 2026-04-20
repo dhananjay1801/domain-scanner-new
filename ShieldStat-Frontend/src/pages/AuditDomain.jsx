@@ -233,6 +233,20 @@ function NewScan() {
   const [newDomain, setNewDomain] = useState("");
   const [addDomainLoading, setAddDomainLoading] = useState(false);
 
+  const [toast, setToast] = useState(null);
+
+  useEffect(() => {
+    if (!toast?.text) return;
+    const id = setTimeout(() => setToast(null), 4500);
+    return () => clearTimeout(id);
+  }, [toast]);
+
+  useEffect(() => {
+    if (!scanError) return;
+    setToast({ text: scanError, type: "error" });
+    setGlobalError(null);
+  }, [scanError]);
+
   useEffect(() => {
     const loadProfile = async () => {
       const token = localStorage.getItem("token");
@@ -271,7 +285,10 @@ function NewScan() {
       localStorage.removeItem("lastScannedDomain");
       window.dispatchEvent(new Event("profile-updated"));
     } catch (err) {
-      alert(err.message || "Failed to add domain");
+      setToast({
+        text: err.message || "Failed to add domain",
+        type: "error",
+      });
     } finally {
       setAddDomainLoading(false);
     }
@@ -399,13 +416,6 @@ function NewScan() {
               your profile before running a scan.
             </div>
           )}
-
-          {scanError && (
-            <div className="mt-4 flex items-center gap-2 rounded-xl border border-red-200 bg-red-50 px-5 py-3 text-sm font-medium text-red-700">
-              <span className="material-symbols-outlined text-base">error</span>
-              {scanError}
-            </div>
-          )}
         </div>
 
         {/* Dynamic Progress Bar */}
@@ -436,6 +446,19 @@ function NewScan() {
           </div>
         )}
       </div>
+
+      {toast?.text && (
+        <div
+          role="status"
+          className={`fixed right-4 top-4 z-[100] max-w-sm rounded-xl border px-4 py-3 text-sm font-medium shadow-lg ${
+            toast.type === "error"
+              ? "border-red-200 bg-red-50 text-red-800"
+              : "border-emerald-200 bg-emerald-50 text-emerald-800"
+          }`}
+        >
+          {toast.text}
+        </div>
+      )}
     </div>
   );
 }

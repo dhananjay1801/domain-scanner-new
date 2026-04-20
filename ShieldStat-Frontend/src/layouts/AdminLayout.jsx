@@ -148,6 +148,20 @@ function AdminLayout({ isDarkMode, onToggleDarkMode }) {
                       />
                     </span>
                   </button>
+
+                  <div className="my-1 border-t border-slate-200 dark:border-slate-600" />
+
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      handleLogout(e);
+                      setIsSettingsOpen(false);
+                    }}
+                    className="flex w-full items-center gap-3 rounded-lg px-3 py-3 text-left text-sm text-rose-600 transition-colors duration-200 hover:bg-rose-50 dark:text-rose-400 dark:hover:bg-rose-950/40"
+                  >
+                    <span className="material-symbols-outlined">logout</span>
+                    <span>Logout</span>
+                  </button>
                 </div>
               )}
 
@@ -162,14 +176,6 @@ function AdminLayout({ isDarkMode, onToggleDarkMode }) {
                 <span>Settings</span>
               </button>
             </div>
-
-            <button
-              onClick={handleLogout}
-              className="w-full flex items-center gap-3 px-4 py-3 text-on-surface hover:text-error transition-colors bg-transparent border-none outline-none cursor-pointer text-left font-medium"
-            >
-              <span className="material-symbols-outlined">logout</span>
-              <span>Logout</span>
-            </button>
           </div>
         </div>
       </aside>

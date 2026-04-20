@@ -56,16 +56,20 @@ function Profile() {
   // ─── Invite state ──────────────────────────────────────────────────────────
   const [inviteEmail, setInviteEmail] = useState("");
   const [inviteLoading, setInviteLoading] = useState(false);
-  const [inviteError, setInviteError] = useState("");
-  const [inviteSuccess, setInviteSuccess] = useState("");
   const [showInviteForm, setShowInviteForm] = useState(false);
 
   // ─── Promo / domain state ──────────────────────────────────────────────────
   const [showPromoForm, setShowPromoForm] = useState(false);
   const [promoCode, setPromoCode] = useState("");
   const [promoLoading, setPromoLoading] = useState(false);
-  const [promoError, setPromoError] = useState("");
-  const [promoSuccess, setPromoSuccess] = useState("");
+
+  const [toast, setToast] = useState(null);
+
+  useEffect(() => {
+    if (!toast?.text) return;
+    const id = setTimeout(() => setToast(null), 4500);
+    return () => clearTimeout(id);
+  }, [toast]);
 
   // ─── Fetch profile on mount ────────────────────────────────────────────────
   useEffect(() => {
@@ -153,26 +157,26 @@ function Profile() {
   // ─── Invite handler ────────────────────────────────────────────────────────
   const handleInvite = async (e) => {
     e.preventDefault();
-    setInviteError("");
-    setInviteSuccess("");
 
     if (!inviteEmail) {
-      setInviteError("Please enter an email address");
+      setToast({ text: "Please enter an email address", type: "error" });
       return;
     }
 
     setInviteLoading(true);
     try {
       const data = await inviteMember(inviteEmail, token);
-      setInviteSuccess(data.message || "Invitation sent successfully!");
+      setToast({
+        text: data.message || "Invitation sent successfully!",
+        type: "success",
+      });
       setInviteEmail("");
       setShowInviteForm(false);
 
-      // Refresh members list
       const membersList = await getMembers(token);
       setMembers(membersList);
     } catch (err) {
-      setInviteError(err.message);
+      setToast({ text: err.message, type: "error" });
     } finally {
       setInviteLoading(false);
     }
@@ -186,37 +190,33 @@ function Profile() {
 
   const handleRedeemPromo = async (e) => {
     e.preventDefault();
-    setPromoError("");
-    setPromoSuccess("");
 
     const code = promoCode.trim();
     if (!code) {
-      setPromoError("Please enter a promo code");
+      setToast({ text: "Please enter a promo code", type: "error" });
       return;
     }
 
     setPromoLoading(true);
     try {
       const data = await redeemPromo(code, token);
-      setPromoSuccess(data.message || "Promo redeemed successfully");
+      setToast({
+        text: data.message || "Promo redeemed successfully",
+        type: "success",
+      });
       setPromoCode("");
       await refreshProfile();
       window.dispatchEvent(new Event("profile-updated"));
     } catch (err) {
-      setPromoError(err.message || "Failed to redeem promo code");
+      setToast({
+        text: err.message || "Failed to redeem promo code",
+        type: "error",
+      });
     } finally {
       setPromoLoading(false);
     }
   };
 
-
-  // ─── Logout handler ────────────────────────────────────────────────────────
-  const handleLogout = () => {
-    localStorage.removeItem("token");
-    localStorage.removeItem("user");
-    clearDomainCaches();
-    navigate("/auth");
-  };
 
   // ─── Helpers ───────────────────────────────────────────────────────────────
   const getInitials = (email) => {
@@ -284,43 +284,15 @@ function Profile() {
           ) : (
             <button
               type="button"
-              onClick={() => {
-                setShowPromoForm(true);
-                setPromoError("");
-                setPromoSuccess("");
-              }}
+              onClick={() => setShowPromoForm(true)}
               className="inline-flex h-11 min-w-[108px] items-center justify-center gap-2 rounded-xl bg-indigo-600 px-4 text-sm font-semibold text-white shadow-sm transition hover:bg-indigo-700"
             >
               Redeem Promo
               <span className="material-symbols-outlined text-[18px]">redeem</span>
             </button>
           )}
-          <button
-            type="button"
-            onClick={handleLogout}
-            className="inline-flex h-11 min-w-[108px] items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-600 shadow-sm transition hover:bg-slate-50"
-          >
-            Logout
-            <span className="material-symbols-outlined text-[18px]">logout</span>
-          </button>
         </div>
       </div>
-      {(promoError || promoSuccess) && (
-        <div className="mb-4 space-y-1">
-          {promoError && <p className="text-sm text-red-600">{promoError}</p>}
-          {promoSuccess && <p className="text-sm text-emerald-600">{promoSuccess}</p>}
-        </div>
-      )}
-
-
-
-      {/* ─── Success / Error banners (for invite) ─── */}
-      {inviteSuccess && (
-        <div className="mb-6 rounded-lg border border-green-200 bg-green-50 p-3 text-sm text-green-700">
-          {inviteSuccess}
-        </div>
-      )}
-
       <div className="mb-6 grid grid-cols-1 gap-6 lg:grid-cols-12">
         {/* ═══════════════ USER CARD ═══════════════ */}
         <section className="lg:col-span-4">
@@ -374,11 +346,7 @@ function Profile() {
               </div>
               {isOwner && (
                 <button
-                  onClick={() => {
-                    setShowInviteForm(!showInviteForm);
-                    setInviteError("");
-                    setInviteSuccess("");
-                  }}
+                  onClick={() => setShowInviteForm(!showInviteForm)}
                   className="flex items-center gap-1.5 rounded-lg bg-indigo-600 px-3 py-2 text-xs font-bold text-white shadow-sm transition hover:brightness-110"
                 >
                   <span className="material-symbols-outlined text-[16px]">
@@ -413,9 +381,6 @@ function Profile() {
                     Send
                   </button>
                 </form>
-                {inviteError && (
-                  <p className="mt-2 text-xs text-red-600">{inviteError}</p>
-                )}
               </div>
             )}
 
@@ -456,9 +421,15 @@ function Profile() {
                         </span>
                       </div>
                     </div>
-                    <span className="rounded bg-indigo-100 px-2 py-0.5 text-[10px] font-bold uppercase text-indigo-700">
-                      Active
-                    </span>
+                    {member.is_blacklisted ? (
+                      <span className="rounded bg-rose-100 px-2 py-0.5 text-[10px] font-bold uppercase text-rose-700">
+                        Blocked
+                      </span>
+                    ) : (
+                      <span className="rounded bg-indigo-100 px-2 py-0.5 text-[10px] font-bold uppercase text-indigo-700">
+                        Active
+                      </span>
+                    )}
                   </div>
                 ))
               )}
@@ -560,6 +531,19 @@ function Profile() {
           </div>
         </section>
       </div>
+
+      {toast?.text && (
+        <div
+          role="status"
+          className={`fixed right-4 top-4 z-[100] max-w-sm rounded-xl border px-4 py-3 text-sm font-medium shadow-lg ${
+            toast.type === "error"
+              ? "border-red-200 bg-red-50 text-red-800"
+              : "border-emerald-200 bg-emerald-50 text-emerald-800"
+          }`}
+        >
+          {toast.text}
+        </div>
+      )}
     </div>
   );
 }

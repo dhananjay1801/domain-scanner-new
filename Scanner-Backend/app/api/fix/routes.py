@@ -5,6 +5,7 @@ from sqlalchemy.orm import Session
 from app.core.redis_queue import RedisClient
 from app.core.middleware import protect
 from app.db.base import get_db
+from app.db.models import User
 from app.api.fix.schemas import FixRequest, FixSubmitResponse, FixResultRequest, FixResultResponse
 from app.api.fix.service import apply_fix_result
 
@@ -15,11 +16,21 @@ QUEUE_NAME = "fix_queue"
 
 
 @router.post("/submit", response_model=FixSubmitResponse)
-def submit_fix(request: FixRequest, db: Session = Depends(get_db)):
+def submit_fix(
+    request: FixRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(protect),
+):
+    if request.org_id != current_user.org_id:
+        raise HTTPException(status_code=403, detail="Organization mismatch")
     try:
-        job_data = request.model_dump()
-        job_data["scan_id"] = job_data["org_id"]
-        redis_client.redis.rpush(QUEUE_NAME, json.dumps(job_data))
+        queue_payload = {
+            "scan_id": request.org_id,
+            "domain": request.domain,
+            "fix_type": request.fix_type,
+            "data": request.data,
+        }
+        redis_client.redis.rpush(QUEUE_NAME, json.dumps(queue_payload))
     except Exception:
         raise HTTPException(
             status_code=503,

@@ -1,10 +1,11 @@
-import { Link, useLocation } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useEffect, useRef, useState } from "react";
 import logo from "../assets/logo.svg";
 import ResetPasswordModal from "./ResetPasswordModal";
 
 function Sidebar({ isOpen, onToggle, isDarkMode, onToggleDarkMode }) {
   const location = useLocation();
+  const navigate = useNavigate();
   const settingsRef = useRef(null);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isResetModalOpen, setIsResetModalOpen] = useState(false);
@@ -75,6 +76,16 @@ function Sidebar({ isOpen, onToggle, isDarkMode, onToggleDarkMode }) {
   }, [isSettingsOpen]);
 
   const isActive = (path) => location.pathname === path;
+
+  const handleLogout = () => {
+    localStorage.removeItem("token");
+    localStorage.removeItem("user");
+    localStorage.removeItem("scannedDomains");
+    localStorage.removeItem("lastScannedDomain");
+    localStorage.removeItem("malware_last_scan");
+    setIsSettingsOpen(false);
+    navigate("/auth");
+  };
 
   const baseClass =
     "relative flex items-center gap-3 px-4 py-3 rounded-lg transition-colors duration-200 overflow-hidden";
@@ -259,6 +270,17 @@ function Sidebar({ isOpen, onToggle, isDarkMode, onToggleDarkMode }) {
                         }`}
                     />
                   </span>
+                </button>
+
+                <div className="my-1 border-t border-slate-200 dark:border-slate-600" />
+
+                <button
+                  type="button"
+                  onClick={handleLogout}
+                  className="flex w-full items-center gap-3 rounded-lg px-3 py-3 text-left text-sm text-rose-600 transition-colors duration-200 hover:bg-rose-50 dark:text-rose-400 dark:hover:bg-rose-950/40"
+                >
+                  <span className="material-symbols-outlined">logout</span>
+                  <span>Logout</span>
                 </button>
               </div>
             )}

@@ -264,11 +264,14 @@ def get_members(owner: User, db: Session):
         User.org_id == owner.org_id,
     ).all()
 
+    blocked_emails = {b.email.lower() for b in db.query(Blacklist).all()}
+
     return [
         {
             "user_id": m.user_id,
             "role": m.role,
             "email": m.email,
+            "is_blacklisted": m.email.lower() in blocked_emails,
         }
         for m in members
     ]

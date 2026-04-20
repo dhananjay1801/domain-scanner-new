@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { useSearchParams, Link } from "react-router-dom";
-import { getScore, getIpReputation, getProfile } from "../services/api";
+import { getScore, getIpReputation, getProfile, submitFix } from "../services/api";
 import { jsPDF } from "jspdf";
 import autoTable from "jspdf-autotable";
 import isecurifyLogo from "../assets/isecurify_logo.png";
@@ -196,10 +196,47 @@ function parseCategorized(catVulns) {
   return categories;
 }
 
+function isUnexpectedOpenPortRule(rule) {
+  return typeof rule === "string" && /^Unexpected open port(\s|$)/i.test(rule.trim());
+}
+
 // ─── Host row (inside expanded finding) ──────────────────────────────────────
 
-function HostRow({ host }) {
+function HostRow({ host, rule, token, orgId, categoryName, onFixToast }) {
   const hostCfg = getSeverityConfig(host.severity);
+  const [fixing, setFixing] = useState(false);
+
+  const portNum = host.port != null && host.port !== "" ? Number(host.port) : NaN;
+  const canFix = Boolean(
+    categoryName !== "Network Security" &&
+      token &&
+      orgId &&
+      isUnexpectedOpenPortRule(rule) &&
+      Number.isFinite(portNum) &&
+      portNum > 0,
+  );
+
+  const handleFix = async (e) => {
+    e.stopPropagation();
+    if (!canFix || !host.subdomain) return;
+    setFixing(true);
+    try {
+      await submitFix(
+        {
+          org_id: orgId,
+          domain: host.subdomain,
+          fix_type: "port",
+          data: { port: portNum },
+        },
+        token,
+      );
+      onFixToast?.({ ok: true, text: "Fix queued — verification will run shortly." });
+    } catch (err) {
+      onFixToast?.({ ok: false, text: err.message || "Failed to queue fix" });
+    } finally {
+      setFixing(false);
+    }
+  };
 
   return (
     <div
@@ -221,7 +258,18 @@ function HostRow({ host }) {
           <span className={`font-mono text-xs ${hostCfg.titleColor}`}>{host.port}</span>
         </div>
       )}
-      <div className="ml-auto">
+      <div className="ml-auto flex items-center gap-2 flex-wrap justify-end">
+        {canFix && (
+          <button
+            type="button"
+            onClick={handleFix}
+            disabled={fixing}
+            className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-bold uppercase tracking-tight bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-60 transition-colors shadow-sm"
+          >
+            <span className="material-symbols-outlined text-[14px]">build</span>
+            {fixing ? "…" : "Fix"}
+          </button>
+        )}
         <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-tight ${hostCfg.badge}`}>
           {host.severity || "Info"}
         </span>
@@ -232,7 +280,7 @@ function HostRow({ host }) {
 
 // ─── Vulnerability finding card ───────────────────────────────────────────────
 
-function FindingCard({ finding }) {
+function FindingCard({ finding, token, orgId, categoryName, onFixToast }) {
   const [expanded, setExpanded] = useState(false);
   const cfg = getSeverityConfig(finding.severity);
   const label = finding.severity.charAt(0).toUpperCase() + finding.severity.slice(1);
@@ -267,7 +315,15 @@ function FindingCard({ finding }) {
         <div className={`border-t ${cfg.cardBorder} px-5 pb-5 pt-4 space-y-2`}>
           <p className={`text-[11px] font-bold uppercase tracking-widest mb-3 ${cfg.subColor}`}>Affected Hosts</p>
           {finding.hosts.map((host, idx) => (
-            <HostRow key={`${host.subdomain}-${host.ip}-${idx}`} host={host} />
+            <HostRow
+              key={`${host.subdomain}-${host.ip}-${idx}`}
+              host={host}
+              rule={finding.rule}
+              token={token}
+              orgId={orgId}
+              categoryName={categoryName}
+              onFixToast={onFixToast}
+            />
           ))}
         </div>
       )}
@@ -441,9 +497,17 @@ function ScanDetails() {
   const [error, setError] = useState(null);
   const [activeCatName, setActiveCatName] = useState(null);
   const [knownDomains, setKnownDomains] = useState([]);
+  const [orgId, setOrgId] = useState(null);
   const [profileLoaded, setProfileLoaded] = useState(false);
+  const [fixToast, setFixToast] = useState(null);
 
   const domain = normalizeDomain(searchParams.get("domain") || knownDomains[0] || "");
+
+  useEffect(() => {
+    if (!fixToast) return;
+    const t = setTimeout(() => setFixToast(null), 4500);
+    return () => clearTimeout(t);
+  }, [fixToast]);
 
   useEffect(() => {
     const token = localStorage.getItem("token");
@@ -460,6 +524,7 @@ function ScanDetails() {
 
         const profileDomains = dedupeDomains(normalizeProfileDomains(profile?.domain));
         setKnownDomains(profileDomains);
+        setOrgId(profile?.org_id ?? null);
 
         const requestedDomain = normalizeDomain(searchParams.get("domain") || "");
         if (!requestedDomain && profileDomains[0]) {
@@ -656,6 +721,8 @@ function ScanDetails() {
     ? worstIpSev === null ? CLEAN_CONFIG : getSeverityConfig(worstIpSev)
     : getSeverityConfig(activeCat?.severity || "info");
 
+  const authToken = typeof window !== "undefined" ? localStorage.getItem("token") : null;
+
   const handleDownloadReport = async () => {
     if (!data) return;
 
@@ -799,8 +866,42 @@ function ScanDetails() {
     doc.save(`${domain}-scan-report.pdf`);
   };
 
+  const showFixToast = (payload) => setFixToast({ ...payload, id: Date.now() });
+
   return (
     <div className="min-h-screen bg-surface relative">
+      {fixToast && (
+        <div
+          className="fixed top-4 right-4 z-[200] flex max-w-sm"
+          role="status"
+          aria-live="polite"
+        >
+          <div
+            className={`relative flex w-full items-start gap-3 rounded-xl border px-4 py-3 pr-10 shadow-lg backdrop-blur-sm ${
+              fixToast.ok
+                ? "border-emerald-200 bg-emerald-50/95 text-emerald-950"
+                : "border-red-200 bg-red-50/95 text-red-950"
+            }`}
+          >
+            <span
+              className={`material-symbols-outlined mt-0.5 shrink-0 text-xl ${
+                fixToast.ok ? "text-emerald-600" : "text-red-600"
+              }`}
+            >
+              {fixToast.ok ? "check_circle" : "error"}
+            </span>
+            <p className="text-sm font-semibold leading-snug">{fixToast.text}</p>
+            <button
+              type="button"
+              onClick={() => setFixToast(null)}
+              className="absolute top-2 right-2 rounded-lg p-1 text-slate-500 hover:bg-black/5 hover:text-slate-800"
+              aria-label="Dismiss"
+            >
+              <span className="material-symbols-outlined text-lg leading-none">close</span>
+            </button>
+          </div>
+        </div>
+      )}
       <main className="flex-1 overflow-y-auto pt-8 pb-16 px-12 max-w-[1600px] mx-auto w-full">
 
         {/* ── Domain nav ── */}
@@ -952,7 +1053,14 @@ function ScanDetails() {
                     </div>
                   ) : (
                     activeCat.findings.map((finding, idx) => (
-                      <FindingCard key={`${finding.rule}-${idx}`} finding={finding} />
+                        <FindingCard
+                          key={`${finding.rule}-${idx}`}
+                          finding={finding}
+                          token={authToken}
+                          orgId={orgId}
+                          categoryName={activeCat.name}
+                          onFixToast={showFixToast}
+                        />
                     ))
                   )}
                 </>
