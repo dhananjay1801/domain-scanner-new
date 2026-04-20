@@ -21,6 +21,10 @@ class User(Base):
     password = Column(String(255), nullable=False)
     role = Column(String(20), nullable=False, default="owner")
     created_at = Column(TIMESTAMP, server_default=func.now())
+    email_verified = Column(Boolean, nullable=False, server_default="true")
+    verification_token = Column(String(255), unique=True, nullable=True)
+    verification_expires_at = Column(TIMESTAMP, nullable=True)
+    pending_registration_domain = Column(Text, nullable=True)
 
 class Invitation(Base):
     __tablename__ = "invitations"
@@ -66,14 +70,12 @@ class Question(Base):
     question_text = Column(Text, nullable=False)
     options = Column(JSONB, nullable=False)
 
-class AssessmentResult(Base):
-    __tablename__ = "assessment_results"
+class UserAssessment(Base):
 
-    _id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    user_id = Column(String(36), ForeignKey("users.user_id"), nullable=False)
-    summary = Column(JSONB, nullable=False)
+    __tablename__ = "user_assessment"
+
+    user_id = Column(String(36), ForeignKey("users.user_id"), primary_key=True)
     answers = Column(JSONB, nullable=False)
-    created_at = Column(TIMESTAMP, server_default=func.now())
 
 
 

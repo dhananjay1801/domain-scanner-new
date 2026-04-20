@@ -40,3 +40,7 @@ class OrgMembersRequest(BaseModel):
 
 class AddDomainRequest(BaseModel):
     domain: str
+
+
+class VerifyEmailRequest(BaseModel):
+    token: str

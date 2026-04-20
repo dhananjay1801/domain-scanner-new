@@ -1,7 +1,7 @@
-import { useMemo, useState, useEffect } from "react";
+import { useMemo, useState, useEffect, useRef, useCallback } from "react";
 import {
-  ASSESSMENT_CATEGORIES_METADATA,
   getInitialSelections,
+  computeAssessmentMetrics,
   getMetricColor,
   getMetricTextColor,
   getMetricStatus,
@@ -10,13 +10,58 @@ import {
   getRadarPoint,
   getRadarGridPoints,
 } from "../utils/assessmentUtils";
-import { getAssessmentQuestions } from "../services/api";
+import { getAssessmentQuestions, submitAssessment } from "../services/api";
+
+const ASSESSMENT_SAVE_DEBOUNCE_MS = 5000;
+
+function buildAssessmentPayload(selections, questions) {
+  const answers = [];
+
+  for (const q of questions) {
+    if (selections[`ignored_${q._id}`]) continue;
+    const sel = selections[q._id];
+    if (sel !== undefined && sel !== null) {
+      answers.push({
+        questionId: String(q._id),
+        selectedOption: sel,
+      });
+    }
+  }
+
+  return { answers };
+}
 
 function Assessment() {
   const [questions, setQuestions] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selections, setSelections] = useState(getInitialSelections);
   const [activeCategoryId, setActiveCategoryId] = useState(1);
+  const persistTimerRef = useRef(null);
+
+  const schedulePersist = useCallback((snapshot) => {
+    const token = localStorage.getItem("token");
+    if (!token || !questions.length) return;
+
+    if (persistTimerRef.current) {
+      clearTimeout(persistTimerRef.current);
+    }
+
+    persistTimerRef.current = setTimeout(() => {
+      persistTimerRef.current = null;
+      const body = buildAssessmentPayload(snapshot, questions);
+      submitAssessment(body, token).catch((err) => {
+        console.error("Failed to save assessment:", err);
+      });
+    }, ASSESSMENT_SAVE_DEBOUNCE_MS);
+  }, [questions]);
+
+  useEffect(() => {
+    return () => {
+      if (persistTimerRef.current) {
+        clearTimeout(persistTimerRef.current);
+      }
+    };
+  }, []);
 
   useEffect(() => {
     const fetchQuestions = async () => {
@@ -33,52 +78,10 @@ function Assessment() {
   }, []);
 
 
-  const metrics = useMemo(() => {
-    if (!questions.length) return [];
-
-    // Group questions by category
-    const categories = Array.from(new Set(questions.map((q) => q.category_id)));
-
-    return categories.map((catId) => {
-      const catQuestions = questions.filter((q) => q.category_id === catId);
-      const metadata = ASSESSMENT_CATEGORIES_METADATA[catId] || {
-        label: `Category ${catId}`,
-        axisLabel: `Cat ${catId}`,
-        icon: "help",
-        accent: { border: "", button: "", pill: "" },
-      };
-
-      let totalScore = 0;
-      let availableMaxScore = 0;
-
-      catQuestions.forEach((q) => {
-        const selection = selections[q._id];
-        const isIgnored = selections[`ignored_${q._id}`];
-
-        if (!isIgnored) {
-          availableMaxScore += 3; // Standard max score per question
-
-          if (selection !== undefined) {
-            const selectedOption = q.options.find((opt) => opt.option_key === selection);
-            if (selectedOption) {
-              totalScore += selectedOption.score;
-            }
-          }
-        }
-      });
-
-      const value = availableMaxScore > 0 ? Math.round((totalScore / availableMaxScore) * 100) : 0;
-
-      return {
-        id: catId,
-        ...metadata,
-        questions: catQuestions,
-        value,
-        totalScore,
-        maxPossibleScore: availableMaxScore
-      };
-    });
-  }, [questions, selections]);
+  const metrics = useMemo(
+    () => computeAssessmentMetrics(selections, questions),
+    [questions, selections],
+  );
 
   const radarPoints = useMemo(() => {
     if (metrics.length < 3) return "";
@@ -89,20 +92,21 @@ function Assessment() {
     const newSelections = {
       ...selections,
       [questionId]: optionKey,
-      // If we select an answer, we automatically stop ignoring it
-      [`ignored_${questionId}`]: false
+      [`ignored_${questionId}`]: false,
     };
     setSelections(newSelections);
     localStorage.setItem("assessment_selections", JSON.stringify(newSelections));
+    schedulePersist(newSelections);
   };
 
   const toggleIgnore = (questionId) => {
     setSelections((prev) => {
       const newSelections = {
         ...prev,
-        [`ignored_${questionId}`]: !prev[`ignored_${questionId}`]
+        [`ignored_${questionId}`]: !prev[`ignored_${questionId}`],
       };
       localStorage.setItem("assessment_selections", JSON.stringify(newSelections));
+      schedulePersist(newSelections);
       return newSelections;
     });
   };

@@ -48,6 +48,54 @@ export function getInitialSelections() {
   return {};
 }
 
+/** Same category scores as the assessment UI; used for save payload and rendering. */
+export function computeAssessmentMetrics(selections, questions) {
+  if (!questions.length) return [];
+
+  const categories = Array.from(new Set(questions.map((q) => q.category_id)));
+
+  return categories.map((catId) => {
+    const catQuestions = questions.filter((q) => q.category_id === catId);
+    const metadata = ASSESSMENT_CATEGORIES_METADATA[catId] || {
+      label: `Category ${catId}`,
+      axisLabel: `Cat ${catId}`,
+      icon: "help",
+      accent: { border: "", button: "", pill: "" },
+    };
+
+    let totalScore = 0;
+    let availableMaxScore = 0;
+
+    catQuestions.forEach((q) => {
+      const selection = selections[q._id];
+      const isIgnored = selections[`ignored_${q._id}`];
+
+      if (!isIgnored) {
+        availableMaxScore += 3;
+
+        if (selection !== undefined) {
+          const selectedOption = q.options.find((opt) => opt.option_key === selection);
+          if (selectedOption) {
+            totalScore += selectedOption.score;
+          }
+        }
+      }
+    });
+
+    const value =
+      availableMaxScore > 0 ? Math.round((totalScore / availableMaxScore) * 100) : 0;
+
+    return {
+      id: catId,
+      ...metadata,
+      questions: catQuestions,
+      value,
+      totalScore,
+      maxPossibleScore: availableMaxScore,
+    };
+  });
+}
+
 export function getMetricColor(value) {
   if (value >= 80) return "bg-emerald-500";
   if (value <= 33) return "bg-red-500";

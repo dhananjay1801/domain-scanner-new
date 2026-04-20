@@ -46,6 +46,13 @@ export function registerUser(email, password, domain, captcha_token) {
   });
 }
 
+export function verifyEmail(token) {
+  return request("/auth/verify-email", {
+    method: "POST",
+    body: { token },
+  });
+}
+
 export function getProfile(token) {
   return request("/auth/profile", { token });
 }
@@ -234,6 +241,15 @@ export function abortMalwareScan(domain, token) {
 
 export function getAssessmentQuestions() {
   return request("/questions/");
+}
+
+/** POST /assessment/ — body: { answers: [{ questionId, selectedOption }] } */
+export function submitAssessment(body, token) {
+  return request("/assessment/", {
+    method: "POST",
+    body,
+    token,
+  });
 }
 
 // ─── Fix (port verification queue) ───────────────────────────────────────────

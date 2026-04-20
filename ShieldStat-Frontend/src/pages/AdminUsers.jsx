@@ -130,7 +130,10 @@ function AdminUsers() {
   }
 
   const organizations = usersData?.organizations || [];
-  const total_users = organizations.reduce((acc, org) => acc + (org.users?.length || 0), 0) + (usersData?.admin?.length || 0);
+  const adminUsers = usersData?.admin || [];
+  const total_users =
+    organizations.reduce((acc, org) => acc + (org.users?.length || 0), 0) +
+    adminUsers.length;
 
 
   return (
@@ -379,6 +382,7 @@ function AdminUsers() {
                             )}
                         </div>
                     )})}
+
                     </div>
                 )}
             </div>

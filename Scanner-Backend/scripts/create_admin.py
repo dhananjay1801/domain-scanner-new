@@ -37,6 +37,7 @@ def create_admin_user():
             password=hashPassword(password),
             role="admin",
             org_id=None,
+            email_verified=True,
         )
 
         db.add(new_admin)

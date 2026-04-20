@@ -7,6 +7,7 @@ import AdminLayout from "./layouts/AdminLayout";
 
 import Landing from "./pages/LandingPage";
 import Auth from "./pages/AuthPage";
+import VerifyEmail from "./pages/VerifyEmailPage";
 import Scan from "./pages/AuditDomain";
 import MalwareScan from "./pages/MalwareScan";
 import ScanDashboard from "./pages/ScanDashboard";
@@ -53,6 +54,7 @@ function App() {
       >
         <Route index element={<Landing />} />
         <Route path="auth" element={<Auth />} />
+        <Route path="auth/verify-email" element={<VerifyEmail />} />
       </Route>
 
       <Route

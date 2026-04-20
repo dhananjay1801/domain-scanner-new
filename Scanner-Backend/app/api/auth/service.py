@@ -7,11 +7,23 @@ import os
 from fastapi import HTTPException
 from sqlalchemy.orm import Session
 from sqlalchemy.orm.attributes import flag_modified
-from app.db.models import User, Organization, Invitation, PromoCode, PasswordResetOTP, Blacklist
-from app.utils.email import send_invite_email, send_password_reset_otp_email
+from app.db.models import (
+    User,
+    Organization,
+    Invitation,
+    PromoCode,
+    PasswordResetOTP,
+    Blacklist,
+)
+from app.utils.email import (
+    send_invite_email,
+    send_password_reset_otp_email,
+    send_registration_verification_email,
+)
 
 JWT_SECRET = os.getenv('JWT_SECRET')
 OTP_EXPIRY_MINUTES = 10
+VERIFICATION_EXPIRY_HOURS = 48
 
 def hashPassword(password: str) -> str:
     salt = bcrypt.gensalt(10)
@@ -42,55 +54,157 @@ def decode_token(token: str):
     except JWTError:
         raise HTTPException(status_code=401, detail="Invalid or expired token")
 
+def _email_domain_has_owner(email_lower: str, db: Session) -> bool:
+    """True if a verified owner exists for this email domain (unverified signups do not count)."""
+    email_domain = email_lower.split("@")[-1]
+    return (
+        db.query(User)
+        .filter(
+            User.email.like(f"%@{email_domain}"),
+            User.role == "owner",
+            User.email_verified.is_(True),
+        )
+        .first()
+        is not None
+    )
+
+
+def _finalize_owner_registration(user: User, domain: str, db: Session) -> None:
+    org_id = str(uuid.uuid4())
+    new_org = Organization(
+        org_id=org_id,
+        user_id=user.user_id,
+        domain=[domain],
+    )
+    db.add(new_org)
+    db.flush()
+
+    user.org_id = org_id
+    user.email_verified = True
+    user.verification_token = None
+    user.verification_expires_at = None
+    user.pending_registration_domain = None
+
+
 def register(email: str, password: str, domain: str, db: Session):
     email_lower = email.lower().strip()
     existing_user = db.query(User).filter(User.email == email_lower).first()
-    if existing_user:
+    if existing_user and existing_user.email_verified:
         raise HTTPException(status_code=400, detail="User already exists")
 
     domain = domain.strip().lower()
     if not domain:
         raise HTTPException(status_code=400, detail="Domain is required")
 
-    email_domain = email_lower.split("@")[-1]
-    existing_domain_owner = db.query(User).filter(
-        User.email.like(f"%@{email_domain}"),
-        User.role == "owner"
-    ).first()
-
-    if existing_domain_owner:
+    if _email_domain_has_owner(email_lower, db):
+        email_domain = email_lower.split("@")[-1]
         raise HTTPException(
-            status_code=400, 
-            detail=f"An account for '@{email_domain}' already exists. Cannot create a new account, you need to be invited by the owner."
+            status_code=400,
+            detail=f"An account for '@{email_domain}' already exists. Cannot create a new account, you need to be invited by the owner.",
         )
 
-    user_id = str(uuid.uuid4())
+    token = secrets.token_urlsafe(32)
+    expires_at = datetime.now(timezone.utc) + timedelta(hours=VERIFICATION_EXPIRY_HOURS)
     hashed_password = hashPassword(password)
 
-    new_user = User(
-        user_id=user_id,
-        email=email_lower,
-        password=hashed_password,
-        role="owner",
-    )
-    db.add(new_user)
-    db.flush()
+    if existing_user:
+        existing_user.password = hashed_password
+        existing_user.pending_registration_domain = domain
+        existing_user.verification_token = token
+        existing_user.verification_expires_at = expires_at
+    else:
+        new_user = User(
+            user_id=str(uuid.uuid4()),
+            email=email_lower,
+            password=hashed_password,
+            role="owner",
+            org_id=None,
+            email_verified=False,
+            verification_token=token,
+            verification_expires_at=expires_at,
+            pending_registration_domain=domain,
+        )
+        db.add(new_user)
 
-    # Create organization for the owner (first domain is set at registration)
-    org_id = str(uuid.uuid4())
-    new_org = Organization(
-        org_id=org_id,
-        user_id=user_id,
-        domain=[domain],
-    )
-    db.add(new_org)
-    db.flush()
+    frontend = os.getenv("FRONTEND_URL")
+    if not frontend:
+        db.rollback()
+        raise HTTPException(
+            status_code=500,
+            detail="Server misconfiguration: FRONTEND_URL is not set",
+        )
 
-    # Link the user to the org
-    new_user.org_id = org_id
+    verify_url = f"{frontend.rstrip('/')}/auth/verify-email?token={token}"
+
+    try:
+        send_registration_verification_email(to_email=email_lower, verify_url=verify_url)
+    except Exception as email_err:
+        db.rollback()
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to send verification email: {str(email_err)}",
+        )
+
     db.commit()
 
-    return {"message": "Registration successful", "email": email_lower}
+    return {
+        "message": "Check your email for a verification link to complete your registration.",
+        "email": email_lower,
+    }
+
+
+def verify_registration(token: str, db: Session):
+    if not token or not str(token).strip():
+        raise HTTPException(status_code=400, detail="Invalid verification link")
+
+    token = str(token).strip()
+    user = (
+        db.query(User)
+        .filter(
+            User.verification_token == token,
+            User.email_verified.is_(False),
+        )
+        .first()
+    )
+
+    if not user:
+        raise HTTPException(status_code=400, detail="Invalid or expired verification link")
+
+    now_utc = datetime.now(timezone.utc)
+    expires_at = user.verification_expires_at
+    if not expires_at:
+        raise HTTPException(status_code=400, detail="Invalid or expired verification link")
+    if expires_at.tzinfo is None:
+        expires_at = expires_at.replace(tzinfo=timezone.utc)
+
+    if expires_at < now_utc:
+        db.rollback()
+        raise HTTPException(
+            status_code=400,
+            detail="Verification link has expired. Please register again.",
+        )
+
+    email_lower = user.email.lower().strip()
+
+    if _email_domain_has_owner(email_lower, db):
+        email_domain = email_lower.split("@")[-1]
+        raise HTTPException(
+            status_code=400,
+            detail=f"An account for '@{email_domain}' already exists. You can no longer use this verification link.",
+        )
+
+    domain = (user.pending_registration_domain or "").strip().lower()
+    if not domain:
+        raise HTTPException(status_code=500, detail="Registration data is incomplete")
+
+    try:
+        _finalize_owner_registration(user, domain, db)
+        db.commit()
+    except Exception:
+        db.rollback()
+        raise HTTPException(status_code=500, detail="Could not complete registration")
+
+    return {"message": "Your email is verified. You can now log in."}
 
 def login_user(email: str, password: str, db: Session):
     email_lower = email.lower().strip()
@@ -107,6 +221,12 @@ def login_user(email: str, password: str, db: Session):
 
     if not verifyPassword(password, user.password):
         raise HTTPException(status_code=401, detail="Invalid email or password")
+
+    if not user.email_verified:
+        raise HTTPException(
+            status_code=401,
+            detail="Please verify your email before logging in. Check your inbox for the verification link.",
+        )
 
     access_token = generateToken(user.user_id, org_id=user.org_id, role=user.role)
     org = (
@@ -239,6 +359,7 @@ def invite_member(owner: User, invite_email: str, db: Session):
         email=email_lower,
         password=hashed_password,
         role="member",
+        email_verified=True,
     )
     db.add(new_member)
 

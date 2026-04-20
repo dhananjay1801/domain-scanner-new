@@ -3,15 +3,15 @@ from app.api.auth.schemas import (
     RegisterRequest, LoginRequest, InviteRequest,
     RedeemPromoRequest, ForgotPasswordOtpRequest,
     ForgotPasswordResetRequest, ResetPasswordRequest,
-    AddDomainRequest
+    AddDomainRequest, VerifyEmailRequest,
 )
 from sqlalchemy.orm import Session
 from app.db.base import get_db
 from app.api.auth.service import (
-    login_user, register, invite_member,
+    login_user, register, verify_registration, invite_member,
     get_members, redeem_promo_code, add_domain,
     send_forgot_password_otp, verify_otp_and_reset_password,
-    reset_password_with_old_password
+    reset_password_with_old_password,
 )
 from app.core.middleware import require_owner, protect
 from app.db.models import User, Organization
@@ -37,6 +37,20 @@ async def register_route(req: RegisterRequest, db: Session = Depends(get_db)):
     except Exception as e:
         db.rollback()
         raise HTTPException(status_code=500, detail="Internal Server Error")
+
+@router.post('/verify-email')
+def verify_email_route(req: VerifyEmailRequest, db: Session = Depends(get_db)):
+    if not req.token or not str(req.token).strip():
+        raise HTTPException(status_code=400, detail="Invalid verification link")
+
+    try:
+        return verify_registration(req.token.strip(), db)
+    except HTTPException:
+        raise
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail="Internal Server Error")
+
 
 @router.post('/login')
 async def login(req: LoginRequest, db: Session = Depends(get_db)):

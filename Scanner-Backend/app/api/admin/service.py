@@ -24,6 +24,7 @@ def _serialize_user(user: User, blocked_emails: set[str]) -> dict:
         "role": user.role,
         "created_at": user.created_at.isoformat() if user.created_at else None,
         "is_blacklisted": user.email.lower() in blocked_emails,
+        "email_verified": bool(user.email_verified),
     }
 
 
@@ -96,7 +97,12 @@ def get_promo_codes(db: Session) -> list[dict]:
 
 def get_users_by_org(db: Session) -> dict:
     organizations = db.query(Organization).order_by(Organization.domain.asc()).all()
-    users = db.query(User).order_by(User.created_at.desc()).all()
+    users = (
+        db.query(User)
+        .filter(User.email_verified.is_(True))
+        .order_by(User.created_at.desc())
+        .all()
+    )
     blocked_emails = {blocked.email for blocked in db.query(Blacklist).all()}
 
     users_by_org: dict[str, list[User]] = {}
@@ -106,6 +112,8 @@ def get_users_by_org(db: Session) -> dict:
             users_by_org.setdefault(user.org_id, []).append(user)
         else:
             unassigned_users.append(user)
+
+    admin_only = [u for u in unassigned_users if u.role == "admin"]
 
     return {
         "organizations": [
@@ -122,7 +130,7 @@ def get_users_by_org(db: Session) -> dict:
         ],
         "admin": [
             _serialize_user(user, blocked_emails)
-            for user in unassigned_users
+            for user in admin_only
         ],
     }
 

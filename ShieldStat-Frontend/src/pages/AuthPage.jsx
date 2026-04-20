@@ -119,13 +119,12 @@ function AuthPage() {
       }
 
       const data = await registerUser(email, password, domain.trim(), captchaToken);
-      setSuccess(data.message || "Registration successful! Please log in.");
-      setTimeout(() => {
-        setPassword("");
-        setConfirmPassword("");
-        setView("login");
-        setSuccess("");
-      }, 1500);
+      setSuccess(
+        data.message ||
+          "Check your email for a verification link to complete registration."
+      );
+      setPassword("");
+      setConfirmPassword("");
     } catch (err) {
       setError(err.message);
     } finally {
