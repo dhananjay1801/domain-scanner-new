@@ -351,6 +351,17 @@ html.dark textarea:focus {
     box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.2) !important;
 }
 
+html.dark input.landing-domain-input {
+    background-color: transparent !important;
+    border: none !important;
+    box-shadow: none !important;
+}
+
+html.dark input.landing-domain-input:focus {
+    border: none !important;
+    box-shadow: none !important;
+}
+
 /* ─── DARK MODE: Tables ─── */
 html.dark table,
 html.dark thead,

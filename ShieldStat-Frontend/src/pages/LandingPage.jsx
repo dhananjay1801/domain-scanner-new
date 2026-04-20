@@ -2,12 +2,13 @@
 import logo from "../assets/logo.svg"
 // @ts-ignore
 import isecurify_logo from "../assets/isecurify_logo.png"
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useOutletContext } from "react-router-dom";
 
 
 
 function LandingPage() {
   const navigate = useNavigate();
+  const { isDarkMode, onToggleDarkMode } = useOutletContext();
 
   const handleSubmit = (event) => {
     event.preventDefault();
@@ -27,7 +28,33 @@ function LandingPage() {
             />
           </div>
 
-          <nav className="flex items-center gap-8">
+          <nav className="flex items-center gap-4 sm:gap-6">
+            <button
+              type="button"
+              onClick={onToggleDarkMode}
+              className="inline-flex h-10 items-center gap-2.5 rounded-lg px-1.5 text-on-surface-variant transition hover:bg-surface-container-high hover:text-on-surface"
+              aria-pressed={isDarkMode}
+              aria-label={isDarkMode ? "Switch to light mode" : "Switch to dark mode"}
+            >
+              <span
+                className="material-symbols-outlined flex h-6 w-6 shrink-0 items-center justify-center text-[22px] leading-none"
+                aria-hidden="true"
+              >
+                {isDarkMode ? "dark_mode" : "light_mode"}
+              </span>
+              <span
+                className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors ${
+                  isDarkMode ? "bg-indigo-600" : "bg-slate-200"
+                }`}
+                aria-hidden="true"
+              >
+                <span
+                  className={`theme-toggle-knob absolute left-0 top-1/2 h-4 w-4 -translate-y-1/2 rounded-full bg-white transition-transform ${
+                    isDarkMode ? "translate-x-6" : "translate-x-1"
+                  }`}
+                />
+              </span>
+            </button>
             <Link to="/auth">
               <button className="text-white editorial-gradient text-on-primary px-6 py-2.5 rounded-lg font-semibold shadow-lg hover:brightness-110 transition">
                 LOGIN
@@ -79,7 +106,7 @@ function LandingPage() {
               <input
                 type="text"
                 placeholder="example.com"
-                className="flex-grow bg-transparent outline-none px-4 py-4 text-xl font-medium placeholder:text-on-surface-variant/30"
+                className="landing-domain-input flex-grow bg-transparent outline-none px-4 py-4 text-xl font-medium placeholder:text-on-surface-variant/30"
               />
 
               <button

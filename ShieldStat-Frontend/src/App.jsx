@@ -23,8 +23,7 @@ function App() {
   const [isDarkMode, setIsDarkMode] = useState(() => {
     const savedTheme = localStorage.getItem("theme");
     if (savedTheme) return savedTheme === "dark";
-
-    return window.matchMedia?.("(prefers-color-scheme: dark)").matches ?? false;
+    return false;
   });
 
   useEffect(() => {
@@ -43,12 +42,17 @@ function App() {
 
   return (
     <Routes>
-      <Route path="/" element={<PublicLayout />}>
+      <Route
+        path="/"
+        element={
+          <PublicLayout
+            isDarkMode={isDarkMode}
+            onToggleDarkMode={() => setIsDarkMode((current) => !current)}
+          />
+        }
+      >
         <Route index element={<Landing />} />
-      </Route>
-
-      <Route path="/auth" element={<PublicLayout />}>
-        <Route index element={<Auth />} />
+        <Route path="auth" element={<Auth />} />
       </Route>
 
       <Route
