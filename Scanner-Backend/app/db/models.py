@@ -61,21 +61,22 @@ class Blacklist(Base):
     blocked_by = Column(String(36), ForeignKey("users.user_id"), nullable=False)
     created_at = Column(TIMESTAMP, server_default=func.now())
 
-class Question(Base):
-    __tablename__ = "questions"
-
-    _id = Column(Integer, primary_key=True)
-    category_id = Column(Integer, nullable=False)
-    category_name = Column(Text, nullable=False)
-    question_text = Column(Text, nullable=False)
-    options = Column(JSONB, nullable=False)
-
 class UserAssessment(Base):
-
-    __tablename__ = "user_assessment"
+    __tablename__ = "user_assessments"
 
     user_id = Column(String(36), ForeignKey("users.user_id"), primary_key=True)
-    answers = Column(JSONB, nullable=False)
+    authentication = Column(JSONB, nullable=True)
+    web_browsing = Column(JSONB, nullable=True)
+    emails = Column(JSONB, nullable=True)
+    messaging = Column(JSONB, nullable=True)
+    social_media = Column(JSONB, nullable=True)
+    networks = Column(JSONB, nullable=True)
+    mobile_devices = Column(JSONB, nullable=True)
+    personal_computers = Column(JSONB, nullable=True)
+    smart_home = Column(JSONB, nullable=True)
+    personal_finance = Column(JSONB, nullable=True)
+    human_aspect = Column(JSONB, nullable=True)
+    physical_security = Column(JSONB, nullable=True)
 
 
 
@@ -110,7 +111,6 @@ class ScanScoreHistory(Base):
 
 
 class MalwareScanResult(Base):
-    """Append-only malware scan history: one row per completed scan (org + domain + time)."""
 
     __tablename__ = "malware_scan_results"
 

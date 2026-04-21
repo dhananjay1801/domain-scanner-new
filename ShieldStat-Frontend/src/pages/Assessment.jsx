@@ -1,380 +1,706 @@
-import { useMemo, useState, useEffect, useRef, useCallback } from "react";
+import React, { useState, useMemo, useCallback, useEffect, useRef } from "react";
+import { useParams, useNavigate, Link } from "react-router-dom";
 import {
-  getInitialSelections,
-  computeAssessmentMetrics,
-  getMetricColor,
-  getMetricTextColor,
-  getMetricStatus,
-  getMetricStatusClasses,
-  getCategoryCardClasses,
-  getRadarPoint,
-  getRadarGridPoints,
-} from "../utils/assessmentUtils";
-import { getAssessmentQuestions, submitAssessment } from "../services/api";
+  CHECKLIST_SECTIONS,
+  SECTION_MAP,
+  computeSectionProgress,
+  computeOverallProgress,
+} from "../data/checklistData";
+import { getRadarPoint, getRadarGridPoints } from "../utils/assessmentUtils";
+import { getAssessment, saveAssessment } from "../services/api";
 
-const ASSESSMENT_SAVE_DEBOUNCE_MS = 5000;
+/* ═══════════════════════════════════════════════════════════════════════════
+   HELPERS
+   ═══════════════════════════════════════════════════════════════════════════ */
 
-function buildAssessmentPayload(selections, questions) {
-  const answers = [];
-
-  for (const q of questions) {
-    if (selections[`ignored_${q._id}`]) continue;
-    const sel = selections[q._id];
-    if (sel !== undefined && sel !== null) {
-      answers.push({
-        questionId: String(q._id),
-        selectedOption: sel,
-      });
-    }
-  }
-
-  return { answers };
+function getGrade(pct) {
+  if (pct >= 80) return { label: "Excellent", color: "text-emerald-500", bg: "bg-emerald-500" };
+  if (pct >= 60) return { label: "Good", color: "text-sky-500", bg: "bg-sky-500" };
+  if (pct >= 40) return { label: "Fair", color: "text-amber-500", bg: "bg-amber-500" };
+  if (pct >= 20) return { label: "Needs Work", color: "text-orange-500", bg: "bg-orange-500" };
+  return { label: "At Risk", color: "text-red-500", bg: "bg-red-500" };
 }
 
-function Assessment() {
-  const [questions, setQuestions] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [selections, setSelections] = useState(getInitialSelections);
-  const [activeCategoryId, setActiveCategoryId] = useState(1);
-  const persistTimerRef = useRef(null);
+/* ═══════════════════════════════════════════════════════════════════════════
+   SPIDER CHART (compact, used on overview)
+   ═══════════════════════════════════════════════════════════════════════════ */
 
-  const schedulePersist = useCallback((snapshot) => {
-    const token = localStorage.getItem("token");
-    if (!token || !questions.length) return;
+function SpiderChart({ metrics, size = 320 }) {
+  const n = metrics.length;
+  const maxR = 140;
 
-    if (persistTimerRef.current) {
-      clearTimeout(persistTimerRef.current);
-    }
-
-    persistTimerRef.current = setTimeout(() => {
-      persistTimerRef.current = null;
-      const body = buildAssessmentPayload(snapshot, questions);
-      submitAssessment(body, token).catch((err) => {
-        console.error("Failed to save assessment:", err);
-      });
-    }, ASSESSMENT_SAVE_DEBOUNCE_MS);
-  }, [questions]);
-
-  useEffect(() => {
-    return () => {
-      if (persistTimerRef.current) {
-        clearTimeout(persistTimerRef.current);
-      }
-    };
-  }, []);
-
-  useEffect(() => {
-    const fetchQuestions = async () => {
-      try {
-        const data = await getAssessmentQuestions();
-        setQuestions(data || []);
-      } catch (error) {
-        console.error("Error fetching questions:", error);
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchQuestions();
-  }, []);
-
-
-  const metrics = useMemo(
-    () => computeAssessmentMetrics(selections, questions),
-    [questions, selections],
+  const radarPoints = useMemo(
+    () =>
+      metrics
+        .map((m, i) =>
+          getRadarPoint(Math.round((m.value / 100) * maxR), i, n, 250)
+        )
+        .join(" "),
+    [metrics, n, maxR]
   );
 
-  const radarPoints = useMemo(() => {
-    if (metrics.length < 3) return "";
-    return metrics.map((m, i) => getRadarPoint(m.value, i, metrics.length)).join(" ");
-  }, [metrics]);
+  return (
+    <svg viewBox="0 0 500 500" width={size} height={size} className="block">
+      {/* Grid rings */}
+      {[0.25, 0.5, 0.75, 1].map((scale) => (
+        <polygon
+          key={scale}
+          points={getRadarGridPoints(Math.round(maxR * scale), n, 250)}
+          fill="none"
+          stroke="currentColor"
+          strokeWidth={scale === 1 ? 1.5 : 0.8}
+          strokeDasharray={scale < 1 ? "3 3" : "none"}
+          className="text-slate-300 dark:text-slate-700"
+          opacity={0.6}
+        />
+      ))}
 
-  const handleSelect = (questionId, optionKey) => {
-    const newSelections = {
-      ...selections,
-      [questionId]: optionKey,
-      [`ignored_${questionId}`]: false,
-    };
-    setSelections(newSelections);
-    localStorage.setItem("assessment_selections", JSON.stringify(newSelections));
-    schedulePersist(newSelections);
-  };
+      {/* Axes */}
+      {metrics.map((_, i) => {
+        const pt = getRadarPoint(maxR, i, n, 250);
+        const [x, y] = pt.split(",").map(Number);
+        return (
+          <line
+            key={i}
+            x1={250}
+            y1={250}
+            x2={x}
+            y2={y}
+            stroke="currentColor"
+            strokeWidth="0.8"
+            className="text-slate-200 dark:text-slate-800"
+            opacity={0.8}
+          />
+        );
+      })}
 
-  const toggleIgnore = (questionId) => {
-    setSelections((prev) => {
-      const newSelections = {
-        ...prev,
-        [`ignored_${questionId}`]: !prev[`ignored_${questionId}`],
-      };
-      localStorage.setItem("assessment_selections", JSON.stringify(newSelections));
-      schedulePersist(newSelections);
-      return newSelections;
-    });
-  };
+      {/* Filled area */}
+      <polygon
+        points={radarPoints}
+        fill="rgba(99,102,241,0.12)"
+        stroke="#6366f1"
+        strokeWidth="2"
+        strokeLinejoin="round"
+      />
 
-  const activeCategory = metrics.find((m) => m.id === activeCategoryId) || metrics[0];
+      {/* Data dots */}
+      {metrics.map((m, i) => {
+        const r = Math.round((m.value / 100) * maxR);
+        const pt = getRadarPoint(r, i, n, 250);
+        const [x, y] = pt.split(",").map(Number);
+        const fill =
+          m.value >= 60 ? "#6366f1" : m.value >= 30 ? "#f59e0b" : "#ef4444";
+        return (
+          <circle
+            key={i}
+            cx={x}
+            cy={y}
+            r="4.5"
+            fill={fill}
+            stroke="white"
+            strokeWidth="2"
+            className="dark:stroke-slate-900"
+          />
+        );
+      })}
 
-  if (loading) {
-    return (
-      <div className="flex min-h-[60vh] items-center justify-center">
+      {/* Axis labels */}
+      {metrics.map((m, i) => {
+        const labelR = maxR + 32;
+        const pt = getRadarPoint(labelR, i, n, 250);
+        const [lx, ly] = pt.split(",").map(Number);
+        const anchor = lx < 245 ? "end" : lx > 255 ? "start" : "middle";
+        return (
+          <text
+            key={i}
+            x={lx}
+            y={ly + 3}
+            textAnchor={anchor}
+            fontSize="8.5"
+            fontWeight="700"
+            fontFamily="system-ui, -apple-system, sans-serif"
+            className="fill-slate-500 dark:fill-slate-400"
+            letterSpacing="0.5"
+          >
+            {m.label}
+          </text>
+        );
+      })}
+    </svg>
+  );
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   CATEGORY CARD (on overview page)
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+function CategoryCard({ section, progress, done, total, ignored }) {
+  return (
+    <Link
+      to={`/assessment/${section.id}`}
+      id={`cat-${section.id}`}
+      className="group block rounded-2xl border border-slate-200 dark:border-slate-800/60 bg-white dark:bg-slate-900/80 hover:bg-slate-50 dark:hover:bg-slate-800/80 hover:border-indigo-200 dark:hover:border-slate-700 transition-all duration-200 overflow-hidden hover:shadow-lg hover:shadow-indigo-500/10 dark:hover:shadow-indigo-950/20"
+    >
+      {/* Top color accent */}
+      <div className="h-1" style={{ backgroundColor: section.color }} />
+
+      <div className="p-5">
+        {/* Header */}
+        <div className="flex items-start gap-3.5 mb-4">
+          <div
+            className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0"
+            style={{
+              backgroundColor: section.color + "20",
+              color: section.color,
+            }}
+          >
+            <span
+              className="material-symbols-outlined text-xl"
+              style={{ fontVariationSettings: '"FILL" 1' }}
+            >
+              {section.icon}
+            </span>
+          </div>
+          <div className="flex-1 min-w-0">
+            <h3 className="font-bold text-sm text-slate-800 dark:text-slate-100 group-hover:text-indigo-600 dark:group-hover:text-white transition-colors truncate">
+              {section.label}
+            </h3>
+            <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5 line-clamp-2 leading-relaxed">
+              {section.description}
+            </p>
+          </div>
+        </div>
+
+        {/* Progress bar */}
+        <div className="h-1.5 rounded-full bg-slate-100 dark:bg-slate-800 overflow-hidden mb-3">
+          <div
+            className="h-full rounded-full transition-all duration-500"
+            style={{
+              width: `${progress}%`,
+              backgroundColor: section.color,
+            }}
+          />
+        </div>
+
+        {/* Stats row */}
+        <div className="flex items-center justify-between text-[11px]">
+          <span className="text-slate-500 dark:text-slate-400">
+            {done} of {total} complete
+            {ignored > 0 && (
+              <span className="text-slate-400 dark:text-slate-600 ml-1">· {ignored} ignored</span>
+            )}
+          </span>
+          <span
+            className="font-black"
+            style={{ color: section.color }}
+          >
+            {progress}%
+          </span>
+        </div>
+      </div>
+    </Link>
+  );
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   OVERVIEW PAGE (main /assessment route)
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+function OverviewPage({ checks }) {
+  const metrics = useMemo(
+    () =>
+      CHECKLIST_SECTIONS.map((s) => {
+        const done = s.items.filter((i) => checks[i.id]).length;
+        const value =
+          s.items.length > 0
+            ? Math.round((done / s.items.length) * 100)
+            : 0;
+        return {
+          id: s.id,
+          label: s.label,
+          label: s.label,
+          value,
+          icon: s.icon,
+          color: s.color,
+        };
+      }),
+    [checks]
+  );
+
+  const overall = useMemo(() => computeOverallProgress(checks), [checks]);
+  const grade = getGrade(overall);
+  const totalItems = CHECKLIST_SECTIONS.reduce(
+    (a, s) => a + s.items.length,
+    0
+  );
+  const totalDone = CHECKLIST_SECTIONS.reduce(
+    (a, s) => a + s.items.filter((i) => checks[i.id]).length,
+    0
+  );
+
+  return (
+    <div className="min-h-screen bg-slate-100 dark:bg-slate-950">
+      <div className="max-w-[1400px] mx-auto px-6 pt-8 pb-20">
+        {/* Page Header */}
+        <header className="mb-8">
+          <div className="flex items-center gap-3 mb-2">
+            <span
+              className="material-symbols-outlined text-3xl text-indigo-600 dark:text-indigo-400"
+              style={{ fontVariationSettings: '"FILL" 1' }}
+            >
+              verified_user
+            </span>
+            <h1 className="text-2xl font-extrabold tracking-tight text-slate-900 dark:text-white">
+              Security Assessment
+            </h1>
+          </div>
+          <p className="text-slate-500 dark:text-slate-400 text-sm max-w-2xl">
+            The ultimate personal security checklist to secure your digital
+            life. Check off items as you complete them — your progress is saved
+            automatically.
+          </p>
+        </header>
+
+        {/* Top Row: Spider Chart (Left) + Category Breakdown (Right) */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8 items-stretch">
+          {/* Spider Chart + Score */}
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800/60 rounded-2xl p-6 shadow-sm flex flex-col items-center">
+            <div className="w-full flex items-center gap-2 mb-6 pb-4 border-b border-slate-100 dark:border-slate-800/60">
+              <span className="material-symbols-outlined text-indigo-600 dark:text-indigo-400 text-lg">radar</span>
+              <h3 className="text-[10px] font-bold uppercase tracking-widest text-slate-400 dark:text-slate-500">Security Profile Radar</h3>
+            </div>
+            <div className="dark:brightness-110">
+              <SpiderChart metrics={metrics} size={550} />
+            </div>
+          </div>
+
+          {/* Category Breakdown */}
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800/60 rounded-2xl p-6 shadow-sm h-full">
+            <div className="text-[10px] font-bold uppercase tracking-widest text-slate-400 dark:text-slate-500 mb-4 flex items-center gap-2">
+              <span className="material-symbols-outlined text-[16px]">analytics</span>
+              Category Breakdown
+            </div>
+
+            {/* Simplified Overall Progress */}
+            <div className="mb-8 border-b border-slate-100 dark:border-slate-800/60 pb-6">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-[11px] font-black text-slate-700 dark:text-slate-200">Overall Progress</span>
+                <span className="text-[11px] font-black text-indigo-600 dark:text-indigo-400">{overall}%</span>
+              </div>
+              <div className="w-full h-2 rounded-full bg-slate-100 dark:bg-slate-800 overflow-hidden">
+                <div
+                  className="h-full rounded-full bg-indigo-600 transition-all duration-1000"
+                  style={{ width: `${overall}%` }}
+                />
+              </div>
+              <div className="mt-2 text-[10px] text-slate-500 dark:text-slate-400">
+                {totalDone} of {totalItems} security items completed
+              </div>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-3">
+              {CHECKLIST_SECTIONS.map((s) => {
+                const pct = computeSectionProgress(s.id, checks);
+                return (
+                  <Link
+                    to={`/assessment/${s.id}`}
+                    key={s.id}
+                    className="group flex items-center gap-3 hover:bg-slate-50 dark:hover:bg-slate-800/50 rounded-xl px-3 py-2 -mx-3 transition-colors"
+                  >
+                    <span
+                      className="material-symbols-outlined text-[18px]"
+                      style={{ color: s.color, fontVariationSettings: '"FILL" 1' }}
+                    >
+                      {s.icon}
+                    </span>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center justify-between mb-1">
+                        <span className="text-[11px] font-bold text-slate-600 dark:text-slate-300 truncate group-hover:text-indigo-600 dark:group-hover:text-slate-100">
+                          {s.label}
+                        </span>
+                        <span className="text-[10px] font-black" style={{ color: s.color }}>
+                          {pct}%
+                        </span>
+                      </div>
+                      <div className="w-full h-1 rounded-full bg-slate-100 dark:bg-slate-800 overflow-hidden">
+                        <div
+                          className="h-full rounded-full transition-all duration-500"
+                          style={{ width: `${pct}%`, backgroundColor: s.color }}
+                        />
+                      </div>
+                    </div>
+                  </Link>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+
+        {/* Bottom Area: All Categories Grid */}
+        <div className="mb-6 flex items-center gap-2">
+          <span className="material-symbols-outlined text-indigo-600 dark:text-indigo-400 text-[20px]">grid_view</span>
+          <h2 className="text-sm font-bold text-slate-800 dark:text-slate-200 uppercase tracking-wider">Security Checklists</h2>
+        </div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+          {CHECKLIST_SECTIONS.map((section) => {
+            const progress = computeSectionProgress(section.id, checks);
+            const done = section.items.filter((i) => checks[i.id]).length;
+            const ignored = section.items.filter((i) => checks[`ignored_${i.id}`]).length;
+            return (
+              <CategoryCard
+                key={section.id}
+                section={section}
+                progress={progress}
+                done={done}
+                total={section.items.length}
+                ignored={ignored}
+              />
+            );
+          })}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   SECTION DETAIL PAGE (/assessment/:sectionId)
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+function ChecklistItem({ item, checked, ignored, onToggle, onIgnore, color }) {
+  return (
+    <div
+      className={`border-b last:border-0 border-slate-200 dark:border-slate-800/60 transition-colors ${
+        ignored ? "bg-slate-50/50 dark:bg-slate-900/30" : "hover:bg-slate-50 dark:hover:bg-slate-800/30"
+      }`}
+    >
+      <div className="grid grid-cols-[100px_180px_120px_1fr] items-start py-6 px-4 gap-6">
+        {/* Column 1: Done / Ignore */}
         <div className="flex flex-col items-center gap-4">
-          <div className="h-12 w-12 animate-spin rounded-full border-4 border-indigo-600 border-t-transparent" />
-          <p className="text-slate-500 font-medium">Loading Assessment Questions...</p>
+          <button
+            type="button"
+            onClick={() => !ignored && onToggle(item.id)}
+            disabled={ignored}
+            className={`w-6 h-6 rounded-lg border-2 transition-all flex items-center justify-center ${
+              checked
+                ? "border-transparent text-white"
+                : "border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950"
+            }`}
+            style={checked && !ignored ? { backgroundColor: color } : undefined}
+          >
+            {checked && (
+              <svg viewBox="0 0 12 10" className="w-3.5 h-3 fill-none stroke-current stroke-2">
+                <polyline points="1,5 4,9 11,1" />
+              </svg>
+            )}
+          </button>
+
+          <div className="flex flex-col items-center gap-1.5">
+            <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-600">
+              Ignore
+            </span>
+            <button
+              onClick={() => onIgnore(item.id)}
+              className={`relative w-9 h-5 rounded-full transition-colors ${
+                ignored ? "bg-amber-500" : "bg-slate-200 dark:bg-slate-800"
+              }`}
+            >
+              <div
+                className={`absolute top-1 left-1 w-3 h-3 rounded-full bg-white transition-transform ${
+                  ignored ? "translate-x-4" : ""
+                }`}
+              />
+            </button>
+          </div>
+        </div>
+
+        {/* Column 2: Advice (Title) */}
+        <div className="pt-0.5">
+          <h3
+            className={`text-sm font-black leading-tight transition-colors ${
+              ignored
+                ? "text-slate-400 dark:text-slate-600 line-through"
+                : "text-slate-900 dark:text-slate-100"
+            }`}
+            onClick={() => !ignored && onToggle(item.id)}
+          >
+            {item.title}
+          </h3>
+        </div>
+
+        {/* Column 3: Level */}
+        <div className="pt-0.5">
+          <span
+            className={`text-[10px] px-3 py-1.5 rounded-full font-black uppercase tracking-widest inline-block ${
+              item.level === "Essential"
+                ? "bg-emerald-100/80 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-400"
+                : item.level === "Optional"
+                ? "bg-blue-100/80 text-blue-700 dark:bg-blue-500/20 dark:text-blue-400"
+                : "bg-purple-100/80 text-purple-700 dark:bg-purple-500/20 dark:text-purple-400"
+            }`}
+          >
+            {item.level}
+          </span>
+        </div>
+
+        {/* Column 4: Details (Description) */}
+        <div className="pt-0.5">
+          <p
+            className={`text-xs leading-relaxed transition-colors ${
+              ignored ? "text-slate-400 dark:text-slate-600" : "text-slate-500 dark:text-slate-400"
+            }`}
+          >
+            {item.description}
+          </p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function SectionDetailPage({ sectionId, checks, onToggle, onIgnore }) {
+  const section = SECTION_MAP[sectionId];
+  if (!section) {
+    return (
+      <div className="min-h-screen bg-slate-100 dark:bg-slate-950 flex items-center justify-center">
+        <div className="text-center">
+          <span className="material-symbols-outlined text-5xl text-slate-400 block mb-3">error</span>
+          <p className="text-slate-500 dark:text-slate-400 mb-4">Section not found</p>
+          <Link to="/assessment" className="text-indigo-600 dark:text-indigo-400 hover:underline font-semibold text-sm">
+            ← Back to checklist
+          </Link>
         </div>
       </div>
     );
   }
 
+  const progress = computeSectionProgress(sectionId, checks);
+  const doneCount = section.items.filter((i) => checks[i.id]).length;
+  const ignoredCount = section.items.filter((i) => checks[`ignored_${i.id}`]).length;
+  const total = section.items.length;
+
+  const currentIndex = CHECKLIST_SECTIONS.findIndex((s) => s.id === sectionId);
+  const prevSection = currentIndex > 0 ? CHECKLIST_SECTIONS[currentIndex - 1] : null;
+  const nextSection = currentIndex < CHECKLIST_SECTIONS.length - 1 ? CHECKLIST_SECTIONS[currentIndex + 1] : null;
+
   return (
-    <div className="mx-auto max-w-7xl p-6 md:p-12">
-      <header className="mb-10 flex items-start justify-between">
-        <div>
-          <div className="mb-2 flex items-center gap-2">
-            <span className="text-xs font-bold uppercase tracking-widest text-slate-500">
-              Security Assessment
-            </span>
-            <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
-          </div>
-
-          <h1 className="text-4xl font-extrabold tracking-tight text-slate-900">
-            Security Assessment Profile
-          </h1>
-
-          <p className="mt-2 max-w-2xl text-slate-600">
-            Complete the assessment by selecting the option that best describes your current security posture.
-            The results update in real-time.
-          </p>
-        </div>
-      </header>
-
-      <div className="mb-10 grid grid-cols-1 gap-8 lg:grid-cols-4">
-        <div className="assessment-surface lg:col-span-2 flex flex-col items-center rounded-3xl border bg-white p-6 shadow-sm">
-          <div className="mb-6 flex w-full items-center justify-between">
-            <div>
-              <h2 className="text-lg font-extrabold text-slate-900">
-                Spider Net Graph
-              </h2>
-              <p className="text-xs text-slate-500">
-                Live score based on your answers
-              </p>
-            </div>
-
-            <span className="rounded bg-indigo-100 px-2 py-1 text-xs font-bold text-indigo-700">
-              Live
-            </span>
-          </div>
-
-          <div className="relative flex aspect-square w-full max-w-[320px] items-center justify-center">
-            {metrics.map((m, i) => {
-              const [x, y] = getRadarPoint(115, i, metrics.length).split(",");
-              return (
-                <div
-                  key={m.id}
-                  className="absolute text-[10px] font-bold uppercase tracking-widest text-slate-400 text-center w-24"
-                  style={{ left: `${x / 4}%`, top: `${y / 4}%`, transform: 'translate(-50%, -50%)' }}
-                >
-                  {m.axisLabel}
-                </div>
-              );
-            })}
-
-            <svg className="h-full w-full" viewBox="0 0 400 400">
-              {/* Grids */}
-              {[40, 80, 120, 160].map((r) => (
-                <polygon
-                  key={r}
-                  points={getRadarGridPoints(r, metrics.length)}
-                  fill="none"
-                  stroke="#94a3b8"
-                  strokeDasharray="4"
-                />
-              ))}
-
-              {/* Axis lines */}
-              {metrics.map((_, i) => {
-                const [x, y] = getRadarPoint(100, i, metrics.length).split(",");
-                return (
-                  <line
-                    key={i}
-                    x1="200"
-                    y1="200"
-                    x2={x}
-                    y2={y}
-                    stroke="#94a3b8"
-                  />
-                );
-              })}
-
-              <polygon
-                points={radarPoints}
-                fill="rgba(79, 70, 229, 0.2)"
-                stroke="#4f46e5"
-                strokeWidth="2.5"
-              />
-
-              {radarPoints.split(" ").map((point, index) => {
-                const [cx, cy] = point.split(",");
-                const value = metrics[index]?.value || 0;
-                const fill = value >= 55 ? "#4f46e5" : "#e11d48";
-
-                return <circle key={index} cx={cx} cy={cy} r="5" fill={fill} />;
-              })}
-            </svg>
-          </div>
+    <div className="min-h-screen bg-slate-50 dark:bg-slate-950">
+      <div className="max-w-[1400px] mx-auto px-6 py-8">
+        {/* Navigation Breadcrumb */}
+        <div className="flex items-center gap-2 mb-8">
+          <Link to="/assessment" className="flex items-center gap-1.5 text-slate-500 dark:text-slate-400 hover:text-indigo-600 dark:hover:text-slate-200 text-xs font-bold transition-all">
+            <span className="material-symbols-outlined text-[18px]">arrow_back</span>
+            CHECKLIST
+          </Link>
+          <span className="text-slate-300 dark:text-slate-800">/</span>
+          <span className="text-xs font-black uppercase text-slate-600 dark:text-slate-300 tracking-widest">{section.label}</span>
         </div>
 
-        <div className="assessment-surface lg:col-span-2 rounded-3xl border bg-slate-50 p-8">
-          <h2 className="mb-6 text-xl font-bold text-slate-900">
-            Metric Breakdown
-          </h2>
-
-          <div className="space-y-6">
-            {metrics.map((metric) => (
-              <div key={metric.id}>
-                <div className="mb-2 flex items-center justify-between">
-                  <span className="font-semibold text-slate-600">
-                    {metric.label}
-                  </span>
-                  <span className={`font-black ${getMetricTextColor(metric.value)}`}>
-                    {metric.value}%
-                  </span>
-                </div>
-
-                <div className="h-2 rounded-full bg-slate-200">
-                  <div
-                    className={`h-full rounded-full transition-all duration-300 ${getMetricColor(metric.value)}`}
-                    style={{ width: `${metric.value}%` }}
-                  />
-                </div>
+        {/* Section Header */}
+        <div className="grid grid-cols-1 lg:grid-cols-[1fr_400px] gap-8 mb-8 items-end">
+          <div>
+            <div className="flex items-center gap-4 mb-4">
+              <div className="w-14 h-14 rounded-2xl flex items-center justify-center flex-shrink-0" style={{ backgroundColor: section.color + "15", color: section.color }}>
+                <span className="material-symbols-outlined text-3xl" style={{ fontVariationSettings: '"FILL" 1' }}>{section.icon}</span>
               </div>
+              <h1 className="text-3xl font-black text-slate-900 dark:text-white tracking-tight">{section.label}</h1>
+            </div>
+            <p className="text-slate-500 dark:text-slate-400 text-sm max-w-2xl leading-relaxed">{section.description}</p>
+          </div>
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800/60 rounded-2xl p-5 shadow-sm">
+            <div className="flex items-center justify-between mb-3 text-[11px] font-black uppercase tracking-widest">
+              <span className="text-slate-400 dark:text-slate-500">Section Progress</span>
+              <span style={{ color: section.color }}>{progress}%</span>
+            </div>
+            <div className="h-2.5 rounded-full bg-slate-100 dark:bg-slate-800 overflow-hidden mb-3">
+              <div className="h-full transition-all duration-500" style={{ width: `${progress}%`, backgroundColor: section.color }} />
+            </div>
+            <div className="text-[10px] font-bold text-slate-400 dark:text-slate-600">
+              {doneCount} of {total} completed {ignoredCount > 0 && `· ${ignoredCount} ignored`}
+            </div>
+          </div>
+        </div>
+
+        {/* Checklist Table Wrapper */}
+        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800/60 rounded-2xl overflow-hidden shadow-sm">
+          {/* Table Header */}
+          <div className="grid grid-cols-[100px_180px_120px_1fr] bg-slate-50/80 dark:bg-slate-800/40 border-b border-slate-200 dark:border-slate-800/60 py-4 px-4 gap-6">
+            <span className="text-[10px] font-black uppercase tracking-widest text-slate-400 dark:text-slate-500 text-center flex items-center justify-center gap-1">
+              Done? <span className="material-symbols-outlined text-[14px]">unfold_more</span>
+            </span>
+            <span className="text-[10px] font-black uppercase tracking-widest text-slate-400 dark:text-slate-500 flex items-center gap-1">
+              Advice <span className="material-symbols-outlined text-[14px]">unfold_more</span>
+            </span>
+            <span className="text-[10px] font-black uppercase tracking-widest text-slate-400 dark:text-slate-500 flex items-center gap-1">
+              Level <span className="material-symbols-outlined text-[14px]">unfold_more</span>
+            </span>
+            <span className="text-[10px] font-black uppercase tracking-widest text-slate-400 dark:text-slate-500 flex items-center gap-1">
+              Details
+            </span>
+          </div>
+
+          {/* Checklist Items */}
+          <div className="flex flex-col">
+            {section.items.map((item) => (
+              <ChecklistItem key={item.id} item={item} checked={!!checks[item.id]} ignored={!!checks[`ignored_${item.id}`]} onToggle={onToggle} onIgnore={onIgnore} color={section.color} />
             ))}
           </div>
         </div>
+
+        {/* Footer Navigation */}
+        <div className="flex items-center justify-between mt-12 pt-8 border-t border-slate-200 dark:border-slate-800/60">
+          {prevSection ? (
+            <Link to={`/assessment/${prevSection.id}`} className="group flex items-center gap-3 text-left">
+              <div className="w-10 h-10 rounded-xl border border-slate-200 dark:border-slate-800/60 flex items-center justify-center group-hover:bg-slate-50 dark:group-hover:bg-slate-800 transition-colors">
+                <span className="material-symbols-outlined text-slate-400 group-hover:text-indigo-600 transition-colors">arrow_back</span>
+              </div>
+              <div>
+                <span className="text-[10px] font-black uppercase tracking-tighter text-slate-400 block mb-0.5">Previous</span>
+                <span className="text-sm font-bold text-slate-700 dark:text-slate-300">{prevSection.label}</span>
+              </div>
+            </Link>
+          ) : <div />}
+          {nextSection ? (
+            <Link to={`/assessment/${nextSection.id}`} className="group flex items-center gap-3 text-right">
+              <div>
+                <span className="text-[10px] font-black uppercase tracking-tighter text-slate-400 block mb-0.5">Next</span>
+                <span className="text-sm font-bold text-slate-700 dark:text-slate-300">{nextSection.label}</span>
+              </div>
+              <div className="w-10 h-10 rounded-xl border border-slate-200 dark:border-slate-800/60 flex items-center justify-center group-hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors">
+                <span className="material-symbols-outlined text-slate-400 group-hover:text-indigo-600 transition-colors">arrow_forward</span>
+              </div>
+            </Link>
+          ) : <div />}
+        </div>
       </div>
-
-      <div className="mb-8 grid grid-cols-1 gap-4 md:grid-cols-3">
-        {metrics.map((metric) => (
-          <button
-            key={metric.id}
-            type="button"
-            onClick={() => setActiveCategoryId(metric.id)}
-            className={`rounded-2xl border p-5 text-center shadow-sm transition-all duration-200 active:scale-[0.98] ${getCategoryCardClasses(
-              activeCategoryId === metric.id,
-            )}`}
-          >
-            <div
-              className={`mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-xl ${activeCategoryId === metric.id
-                ? "bg-white/15 text-white ring-4 ring-white/10"
-                : "bg-indigo-50 text-indigo-600"
-                }`}
-            >
-              <span className="material-symbols-outlined text-2xl">
-                {metric.icon}
-              </span>
-            </div>
-            <h3
-              className={`mb-2 text-sm font-bold uppercase tracking-wider ${activeCategoryId === metric.id ? "text-white" : "text-slate-700"
-                }`}
-            >
-              {metric.label}
-            </h3>
-
-            <div className="mb-3 text-2xl font-black">
-              {metric.value}%
-            </div>
-
-            <span
-              className={`inline-flex rounded-full border px-4 py-1.5 text-xs font-black uppercase ${activeCategoryId === metric.id
-                ? "border-white/25 bg-white/10 text-white"
-                : getMetricStatusClasses(metric.value)
-                }`}
-            >
-              {getMetricStatus(metric.value)}
-            </span>
-          </button>
-        ))}
-      </div>
-
-      {activeCategory && (
-        <section className="space-y-8 py-8">
-          <div>
-            <h2 className="text-2xl font-extrabold tracking-tight text-slate-900">
-              {activeCategory.label} Questions
-            </h2>
-            <p className="mt-2 text-slate-600">
-              Select one option for each question to evaluate your security posture in this category.
-            </p>
-          </div>
-
-          <div className="space-y-6">
-            {activeCategory.questions.map((q) => {
-              const isIgnored = selections[`ignored_${q._id}`];
-              return (
-                <div
-                  key={q._id}
-                  className={`rounded-3xl border p-6 shadow-sm transition-all duration-300 ${isIgnored
-                    ? "border-slate-100 bg-slate-50/50 opacity-60 grayscale-[0.5]"
-                    : "border-slate-200 bg-white"
-                    }`}
-                >
-                  <div className="mb-4 flex items-start justify-between gap-4">
-                    <h4 className={`text-lg font-bold ${isIgnored ? "text-slate-400" : "text-slate-800"}`}>
-                      {q.question_text}
-                    </h4>
-
-                    <button
-                      type="button"
-                      onClick={() => toggleIgnore(q._id)}
-                      className={`flex shrink-0 items-center gap-1.5 rounded-lg px-3 py-1.5 text-[11px] font-bold uppercase tracking-wider transition-all ${isIgnored
-                        ? "bg-amber-100 text-amber-700 hover:bg-amber-200"
-                        : "bg-slate-100 text-slate-500 hover:bg-slate-200"
-                        }`}
-                    >
-                      <span className="material-symbols-outlined text-sm">
-                        {isIgnored ? "visibility" : "visibility_off"}
-                      </span>
-                      {isIgnored ? "Unignore" : "Ignore"}
-                    </button>
-                  </div>
-
-                  <div className={`grid grid-cols-1 gap-4 sm:grid-cols-2 ${isIgnored ? "pointer-events-none" : ""}`}>
-                    {q.options.map((opt) => {
-                      const isSelected = selections[q._id] === opt.option_key;
-                      return (
-                        <button
-                          key={opt.option_key}
-                          type="button"
-                          onClick={() => handleSelect(q._id, opt.option_key)}
-                          className={`flex items-start gap-4 rounded-2xl border p-5 text-left transition-all duration-200 ${isSelected
-                            ? "border-emerald-600 bg-emerald-50/50 ring-1 ring-emerald-600 shadow-sm"
-                            : "border-slate-200 bg-white hover:border-emerald-200 hover:bg-slate-50"
-                            }`}
-                        >
-                          <div className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-xl border-2 font-black text-sm transition-all ${isSelected
-                            ? "border-emerald-600 bg-emerald-600 text-white"
-                            : "border-slate-200 bg-slate-50 text-slate-400"
-                            }`}>
-                            {opt.option_key}
-                          </div>
-                          <div className="flex-1 min-w-0 pt-1">
-                            <span className={`text-sm font-semibold leading-relaxed block ${isSelected ? "text-emerald-900" : "text-slate-700"}`}>
-                              {opt.option_text}
-                            </span>
-                          </div>
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </section>
-      )}
     </div>
   );
 }
 
-export default Assessment;
+/* ═══════════════════════════════════════════════════════════════════════════
+   MAIN EXPORT — routes between Overview and Detail based on URL param
+   ═══════════════════════════════════════════════════════════════════════════ */
 
+export default function Assessment() {
+  const { sectionId } = useParams();
+  const [checks, setChecks] = useState({});
+  const [isReady, setIsReady] = useState(false);
+  const pendingChanges = useRef(new Set());
 
+  // Fetch initial data
+  useEffect(() => {
+    const fetchChecks = async () => {
+      const token = localStorage.getItem("token");
+      if (!token) {
+        setIsReady(true);
+        return;
+      }
+      try {
+        const res = await getAssessment(token);
+        if (res?.data) {
+          const flat = Object.assign({}, ...Object.values(res.data));
+          setChecks(flat);
+        }
+      } catch (err) {
+        console.error("Failed to fetch assessment data", err);
+      } finally {
+        setIsReady(true);
+      }
+    };
+    fetchChecks();
+  }, []);
 
+  // Scroll to top when section changes
+  useEffect(() => {
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }, [sectionId]);
+
+  // Debounced persist
+  useEffect(() => {
+    if (!isReady) return;
+
+    const handler = setTimeout(() => {
+      const token = localStorage.getItem("token");
+      if (!token || pendingChanges.current.size === 0) return;
+
+      const catMap = {
+        "authentication": "authentication",
+        "web-browsing": "web_browsing",
+        "email": "emails",
+        "messaging": "messaging",
+        "social-media": "social_media",
+        "networks": "networks",
+        "mobile-devices": "mobile_devices",
+        "personal-computers": "personal_computers",
+        "smart-home": "smart_home",
+        "personal-finance": "personal_finance",
+        "human-aspect": "human_aspect",
+        "physical-security": "physical_security"
+      };
+
+      const payload = {};
+      const dirties = Array.from(pendingChanges.current);
+      pendingChanges.current.clear();
+
+      for (const sectId of dirties) {
+        const section = CHECKLIST_SECTIONS.find(s => s.id === sectId);
+        if (!section) continue;
+        const catKey = catMap[section.id];
+        payload[catKey] = {};
+        for (const item of section.items) {
+          if (checks[item.id] !== undefined) payload[catKey][item.id] = checks[item.id];
+          if (checks[`ignored_${item.id}`] !== undefined) payload[catKey][`ignored_${item.id}`] = checks[`ignored_${item.id}`];
+        }
+      }
+
+      if (Object.keys(payload).length === 0) return;
+
+      saveAssessment(payload, token).catch(err => {
+        console.error("Failed to save assessment", err);
+      });
+    }, 5000);
+
+    return () => clearTimeout(handler);
+  }, [checks, isReady]);
+
+  const toggle = useCallback((itemId) => {
+    if (sectionId) pendingChanges.current.add(sectionId);
+    setChecks((prev) => ({ ...prev, [itemId]: !prev[itemId] }));
+  }, [sectionId]);
+
+  const ignore = useCallback((itemId) => {
+    if (sectionId) pendingChanges.current.add(sectionId);
+    setChecks((prev) => {
+      const key = `ignored_${itemId}`;
+      const next = { ...prev, [key]: !prev[key] };
+      // If ignoring, also uncheck
+      if (next[key]) {
+        next[itemId] = false;
+      }
+      return next;
+    });
+  }, [sectionId]);
+
+  if (!isReady) {
+    return (
+      <div className="flex justify-center py-20 pb-32">
+        <div className="inline-flex items-center gap-3">
+          <div className="h-5 w-5 animate-spin rounded-full border-2 border-slate-300 border-t-indigo-600" />
+          <p className="text-slate-500 font-medium">Loading assessment profile...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (sectionId) {
+    return (
+      <SectionDetailPage
+        sectionId={sectionId}
+        checks={checks}
+        onToggle={toggle}
+        onIgnore={ignore}
+      />
+    );
+  }
+
+  return <OverviewPage checks={checks} />;
+}

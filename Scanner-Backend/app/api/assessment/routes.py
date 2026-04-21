@@ -1,29 +1,25 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 from app.core.middleware import protect
 from app.db.base import get_db
-from app.api.assessment.schemas import SubmitAssessmentBody
-from app.api.assessment.controller import save_assessment_answers
+from app.api.assessment.schemas import UserAssessmentData
+from app.api.assessment.controller import save_assessment_data, get_assessment_data
 
 router = APIRouter(prefix="/assessment", tags=["assessment"])
 
-
-@router.post("/")
-async def save_assessment(
-    body: SubmitAssessmentBody,
+@router.get("/")
+async def get_assessment(
     db: Session = Depends(get_db),
     current_user=Depends(protect),
 ):
-    if not current_user.org_id:
-        raise HTTPException(
-            status_code=400,
-            detail="User not associated with an organization",
-        )
+    data = get_assessment_data(current_user.user_id, db)
+    return {"success": True, "data": data}
 
-    row = save_assessment_answers(body, current_user.user_id, db)
-
-    return {
-        "success": True,
-        "userId": str(current_user.user_id),
-        "data": row.answers,
-    }
+@router.post("/submit")
+async def save_assessment(
+    body: UserAssessmentData,
+    db: Session = Depends(get_db),
+    current_user=Depends(protect),
+):
+    row = save_assessment_data(body, current_user.user_id, db)
+    return {"success": True, "message": "Assessment saved successfully"}

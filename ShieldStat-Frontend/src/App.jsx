@@ -74,6 +74,7 @@ function App() {
         <Route path="malware-history" element={<MalwareScanHistory />} />
         <Route path="malware-dashboard" element={<MalwareDashboard />} />
         <Route path="assessment" element={<Assessment />} />
+        <Route path="assessment/:sectionId" element={<Assessment />} />
         <Route path="profile" element={<Profile />} />
       </Route>
 

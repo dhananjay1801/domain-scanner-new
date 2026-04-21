@@ -129,11 +129,7 @@ export function getCategoryCardClasses(isActive) {
   return "border-slate-200 bg-white text-slate-900 hover:-translate-y-0.5 hover:border-indigo-200 hover:shadow-md";
 }
 
-export function getRadarPoint(value, index, total = 3) {
-  const center = 200;
-  const maxRadius = 160;
-  const ratio = value / 100;
-  const radius = maxRadius * ratio;
+export function getRadarPoint(radius, index, total = 3, center = 200) {
 
   // For 3 points (Triangle):
   // 0: Top (270 deg)
@@ -149,8 +145,7 @@ export function getRadarPoint(value, index, total = 3) {
   return `${x},${y}`;
 }
 
-export function getRadarGridPoints(radius, total = 3) {
-  const center = 200;
+export function getRadarGridPoints(radius, total = 3, center = 200) {
   const points = [];
   for (let i = 0; i < total; i++) {
     const angleDeg = (i * (360 / total)) - 90;

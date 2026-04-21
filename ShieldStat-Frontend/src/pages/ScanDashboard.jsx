@@ -1,14 +1,17 @@
 import React, { useMemo, useState, useEffect } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import {
-  ASSESSMENT_CATEGORIES_METADATA,
-  ASSESSMENT_CATEGORIES,
-  getInitialSelections,
   getMetricColor,
   getMetricTextColor,
   getRadarPoint,
+  getRadarGridPoints,
 } from "../utils/assessmentUtils";
-import { getScore, getMalwareReport, getProfile, getAssessmentQuestions } from "../services/api";
+import {
+  CHECKLIST_SECTIONS,
+  getInitialChecks,
+  computeSectionProgress,
+} from "../data/checklistData";
+import { getScore, getMalwareReport, getProfile } from "../services/api";
 
 import {
   FileText, Link2, Globe, Zap, ShieldAlert, CheckCircle2,
@@ -83,8 +86,8 @@ function DomainTab({ domain, isActive, onClick }) {
       type="button"
       onClick={onClick}
       className={`flex-shrink-0 inline-flex items-center gap-2 rounded-lg border px-4 py-2.5 text-sm font-bold transition-all active:scale-95 ${isActive
-          ? "border-indigo-600 bg-indigo-600 text-white shadow-sm"
-          : "border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 hover:border-indigo-200 dark:hover:border-indigo-800 hover:bg-indigo-50 dark:hover:bg-indigo-900/40 hover:text-indigo-700 dark:hover:text-indigo-400"
+        ? "border-indigo-600 bg-indigo-600 text-white shadow-sm"
+        : "border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 hover:border-indigo-200 dark:hover:border-indigo-800 hover:bg-indigo-50 dark:hover:bg-indigo-900/40 hover:text-indigo-700 dark:hover:text-indigo-400"
         }`}
     >
       <span
@@ -106,7 +109,6 @@ function ScanDashboard() {
   const domain = normalizeDomain(domainParam || knownDomains[0] || "");
   const [data, setData] = useState(null);
   const [malware, setMalware] = useState(null);
-  const [questions, setQuestions] = useState([]);
   const [selections, setSelections] = useState({});
   const [loading, setLoading] = useState(true);
 
@@ -125,70 +127,41 @@ function ScanDashboard() {
     }).catch(() => { });
   }, [domainParam, setSearchParams]);
 
-  // Load scan data, questions and local selections
+  // Load scan data and local checklist checks
   useEffect(() => {
     const token = localStorage.getItem("token");
-    const savedSelections = getInitialSelections();
-    setSelections(savedSelections);
+    const savedChecks = getInitialChecks();
+    setSelections(savedChecks);
 
     setLoading(true);
     Promise.all([
       domain ? getScore(domain, token).catch(() => null) : Promise.resolve(null),
       domain ? getMalwareReport(domain, token).catch(() => null) : Promise.resolve(null),
-      getAssessmentQuestions().catch(() => [])
-    ]).then(([scoreData, malwareData, questionsData]) => {
+    ]).then(([scoreData, malwareData]) => {
       setData(scoreData);
       setMalware(malwareData);
-      setQuestions(questionsData || []);
       setLoading(false);
     });
   }, [domain]);
 
-  // ASSESSMENT METRICS
-  const metrics = useMemo(() => {
-    if (!questions.length) return ASSESSMENT_CATEGORIES.map(c => ({ ...c, value: 0 }));
+  // ASSESSMENT METRICS — computed from checkbox-based checklist
+  const metrics = useMemo(() =>
+    CHECKLIST_SECTIONS.map((s) => ({
+      id: s.id,
+      label: s.label,
+      axisLabel: s.label.split(" ")[0],
+      icon: s.icon,
+      value: computeSectionProgress(s.id, selections),
+    })),
+  [selections]);
 
-    const categories = Array.from(new Set(questions.map((q) => q.category_id)));
-
-    return categories.map((catId) => {
-      const catQuestions = questions.filter((q) => q.category_id === catId);
-      const metadata = ASSESSMENT_CATEGORIES_METADATA[catId] || {
-        label: `Category ${catId}`,
-        axisLabel: `Cat ${catId}`,
-        icon: "help",
-      };
-
-      let totalScore = 0;
-      let availableMaxScore = 0;
-
-      catQuestions.forEach((q) => {
-        const selection = selections[q._id];
-        const isIgnored = selections[`ignored_${q._id}`];
-
-        if (!isIgnored) {
-          availableMaxScore += 3;
-          if (selection !== undefined) {
-            const selectedOption = q.options.find((opt) => opt.option_key === selection);
-            if (selectedOption) totalScore += selectedOption.score;
-          }
-        }
-      });
-
-      const value = availableMaxScore > 0 ? Math.round((totalScore / availableMaxScore) * 100) : 0;
-
-      return {
-        id: catId,
-        ...metadata,
-        value,
-      };
-    });
-  }, [questions, selections]);
-
+  const MAX_RADAR_R = 160;
   const radarPoints = useMemo(() => {
     if (metrics.length < 3) return "";
-    return metrics.map((m, i) => getRadarPoint(m.value, i, metrics.length)).join(" ");
+    return metrics
+      .map((m, i) => getRadarPoint(Math.round((m.value / 100) * MAX_RADAR_R), i, metrics.length))
+      .join(" ");
   }, [metrics]);
-  ;
 
   if (loading) {
     return (
@@ -276,44 +249,62 @@ function ScanDashboard() {
                   Spider Net Graph
                 </h2>
               </div>
-              <div className="relative flex aspect-square w-full max-w-[150px] items-center justify-center">
-                {metrics.map((m, i) => {
-                  const [x, y] = getRadarPoint(125, i, metrics.length).split(",");
-                  return (
-                    <div
-                      key={m.id}
-                      className="absolute text-[7px] font-bold uppercase tracking-widest text-slate-500 dark:text-slate-400 text-center w-16"
-                      style={{ left: `${x / 4}%`, top: `${y / 4}%`, transform: 'translate(-50%, -50%)' }}
-                    >
-                      {m.axisLabel}
-                    </div>
-                  );
-                })}
-
+              <div className="relative flex aspect-square w-full max-w-[190px] items-center justify-center">
                 <svg className="h-full w-full" viewBox="0 0 400 400">
-                  <polygon points="200,40 338,280 62,280" fill="none" stroke="#94a3b8" strokeDasharray="4" />
-                  <polygon points="200,80 304,260 96,260" fill="none" stroke="#94a3b8" strokeDasharray="4" />
-                  <polygon points="200,120 270,240 130,240" fill="none" stroke="#94a3b8" strokeDasharray="4" />
+                  {/* Grid rings */}
+                  {[0.25, 0.5, 0.75, 1].map((scale) => (
+                    <polygon
+                      key={scale}
+                      points={getRadarGridPoints(Math.round(MAX_RADAR_R * scale), metrics.length)}
+                      fill="none"
+                      stroke={scale === 1 ? "#94a3b8" : "#cbd5e1"}
+                      strokeWidth={scale === 1 ? 1.5 : 1}
+                      strokeDasharray={scale < 1 ? "4 4" : "none"}
+                    />
+                  ))}
 
+                  {/* Axes */}
                   {metrics.map((_, i) => {
-                    const [x, y] = getRadarPoint(100, i, metrics.length).split(",");
-                    return (
-                      <line key={i} x1="200" y1="200" x2={x} y2={y} stroke="#94a3b8" />
-                    );
+                    const [x, y] = getRadarPoint(MAX_RADAR_R, i, metrics.length).split(",");
+                    return <line key={i} x1="200" y1="200" x2={x} y2={y} stroke="#cbd5e1" strokeWidth="1" />;
                   })}
 
+                  {/* Data polygon */}
                   <polygon
                     points={radarPoints}
-                    fill="rgba(79,70,229,0.15)"
+                    fill="rgba(79,70,229,0.13)"
                     stroke="#4f46e5"
-                    strokeWidth="2.5"
+                    strokeWidth="2"
+                    strokeLinejoin="round"
                   />
 
+                  {/* Data points */}
                   {radarPoints.split(" ").map((point, index) => {
                     const [cx, cy] = point.split(",");
                     const value = metrics[index]?.value || 0;
-                    const fill = value >= 55 ? "#4f46e5" : "#e11d48";
-                    return <circle key={index} cx={cx} cy={cy} r="4" fill={fill} />;
+                    const fill = value >= 60 ? "#4f46e5" : value >= 30 ? "#f59e0b" : "#e11d48";
+                    return <circle key={index} cx={cx} cy={cy} r="4" fill={fill} stroke="white" strokeWidth="1.5" />;
+                  })}
+
+                  {/* Axis labels */}
+                  {metrics.map((m, i) => {
+                    const labelR = MAX_RADAR_R + 22;
+                    const [lx, ly] = getRadarPoint(labelR, i, metrics.length).split(",").map(Number);
+                    const anchor = lx < 195 ? "end" : lx > 205 ? "start" : "middle";
+                    return (
+                      <text
+                        key={i}
+                        x={lx}
+                        y={ly + 4}
+                        textAnchor={anchor}
+                        fontSize="8"
+                        fontWeight="700"
+                        fontFamily="system-ui"
+                        fill="#64748b"
+                      >
+                        {m.axisLabel.toUpperCase()}
+                      </text>
+                    );
                   })}
                 </svg>
               </div>

@@ -245,15 +245,12 @@ export function abortMalwareScan(domain, token) {
   });
 }
 
-// ─── Assessment ───────────────────────────────────────────────────────────────
-
-export function getAssessmentQuestions() {
-  return request("/questions/");
+export function getAssessment(token) {
+  return request("/assessment/", { token });
 }
 
-/** POST /assessment/ — body: { answers: [{ questionId, selectedOption }] } */
-export function submitAssessment(body, token) {
-  return request("/assessment/", {
+export function saveAssessment(body, token) {
+  return request("/assessment/submit", {
     method: "POST",
     body,
     token,
