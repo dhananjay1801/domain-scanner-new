@@ -126,6 +126,7 @@ def get_score_history(
             "org_id": item.org_id,
             "domain": item.domain,
             "domain_score": item.domain_score,
+            "result": item.result or {},
             "scan_date": item.scan_date.isoformat() if item.scan_date else None,
         }
         for item in history

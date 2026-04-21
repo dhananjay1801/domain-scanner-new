@@ -105,17 +105,22 @@ class ScanScoreHistory(Base):
     org_id = Column(String(36), ForeignKey("organizations.org_id"), nullable=False)
     domain = Column(Text, nullable=False)
     domain_score = Column(Integer, nullable=False)
+    result = Column(JSONB, nullable=True)
     scan_date = Column(TIMESTAMP, server_default=func.now(), nullable=False)
 
 
 class MalwareScanResult(Base):
+    """Append-only malware scan history: one row per completed scan (org + domain + time)."""
+
     __tablename__ = "malware_scan_results"
 
-    org_id = Column(String(36), ForeignKey("organizations.org_id"), primary_key=True)
-    domain = Column(Text, primary_key=True)
+    scan_id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    org_id = Column(String(36), ForeignKey("organizations.org_id"), nullable=False)
+    domain = Column(Text, nullable=False)
     result = Column(JSONB, nullable=False)
     created_at = Column(TIMESTAMP, server_default=func.now(), nullable=False)
 
     __table_args__ = (
         Index("idx_malware_scan_org_domain", "org_id", "domain"),
+        Index("idx_malware_scan_org_created", "org_id", "created_at"),
     )

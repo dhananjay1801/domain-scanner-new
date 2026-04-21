@@ -380,10 +380,30 @@ def calculate_and_store_summary(db: Session, org_id: str, target: str, raw_data:
         )
         db.add(new_summary)
 
+    history_result = {
+        "domain": root_domain,
+        "domain_score": scoring["domain_score"],
+        "severity": scoring["severity"],
+        "host": {
+            "domain": root_domain,
+            "mail_security": mail_security or {},
+        },
+        "categorized_vulnerabilities": {
+            "Application Security": app_security or {},
+            "Network Security": network_security or {},
+            "TLS Security": tls_security or {},
+            "DNS Security": dns_security or {},
+        },
+        "ips": ips_of_scan or [],
+        "subdomains": scoring.get("subdomains") or [],
+        "raw_scan": raw_data or {},
+    }
+
     score_history = ScanScoreHistory(
         org_id=org_id,
         domain=root_domain,
         domain_score=scoring["domain_score"],
+        result=history_result,
     )
     db.add(score_history)
 

@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { useSearchParams, Link } from "react-router-dom";
+import { useLocation, useSearchParams, Link } from "react-router-dom";
 import { getScore, getIpReputation, getProfile, submitFix } from "../services/api";
 import { jsPDF } from "jspdf";
 import autoTable from "jspdf-autotable";
@@ -490,6 +490,7 @@ function DomainTab({ domain, isActive, onClick }) {
 
 function ScanDetails() {
   const [searchParams, setSearchParams] = useSearchParams();
+  const location = useLocation();
   const [data, setData] = useState(null);
   const [ipReps, setIpReps] = useState([]); // [{ip, abuseConfidenceScore, ...}]
   const [ipRepsLoading, setIpRepsLoading] = useState(false);
@@ -502,6 +503,7 @@ function ScanDetails() {
   const [fixToast, setFixToast] = useState(null);
 
   const domain = normalizeDomain(searchParams.get("domain") || knownDomains[0] || "");
+  const preloadedResult = location?.state?.preloadedResult || null;
 
   useEffect(() => {
     if (!fixToast) return;
@@ -569,6 +571,15 @@ function ScanDetails() {
       return;
     }
 
+    const preloadedDomain = normalizeDomain(
+      preloadedResult?.host?.domain || preloadedResult?.domain || "",
+    );
+    if (preloadedResult && preloadedDomain && preloadedDomain.toLowerCase() === domain.toLowerCase()) {
+      setData(preloadedResult);
+      setLoading(false);
+      return;
+    }
+
     const token = localStorage.getItem("token");
     if (!token) { setLoading(false); setError("Not authenticated."); return; }
 
@@ -576,7 +587,7 @@ function ScanDetails() {
       .then((result) => { setData(result); })
       .catch((e) => setError(e.message))
       .finally(() => setLoading(false));
-  }, [domain, profileLoaded, knownDomains]);
+  }, [domain, profileLoaded, knownDomains, preloadedResult]);
 
   // Fetch IP reputation for all IPs once data arrives
   useEffect(() => {

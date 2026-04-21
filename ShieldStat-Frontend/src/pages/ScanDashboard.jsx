@@ -460,11 +460,11 @@ function ScanDashboard() {
 
                 <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-3">
                   <StatCard label="Total Files" value={mw.totalFiles} icon={FileText} />
+                  <StatCard label="Clean Files" value={mw.cleanFiles} icon={CheckCircle2} colorClass="bg-emerald-50 text-emerald-600 dark:bg-emerald-950/20 dark:text-emerald-400" borderClass="border-emerald-100 dark:border-emerald-900/30" />
                   <StatCard label="Total Links" value={mw.linksCount} icon={Link2} colorClass="bg-blue-50 text-blue-600 dark:bg-blue-950/20 dark:text-blue-400" borderClass="border-blue-100 dark:border-blue-900/30" />
                   <StatCard label="Domains" value={mw.domainsCount} icon={Globe} colorClass="bg-purple-50 text-purple-600 dark:bg-purple-950/20 dark:text-purple-400" borderClass="border-purple-100 dark:border-purple-900/30" />
                   <StatCard label="Smart Alerts" value={mw.alertsCount} icon={Zap} colorClass="bg-amber-50 text-amber-600 dark:bg-amber-950/20 dark:text-amber-400" borderClass="border-amber-100 dark:border-amber-900/30" />
                   <StatCard label="Blacklist DBs" value={mw.blacklistCount} icon={ShieldAlert} colorClass="bg-indigo-50 text-indigo-600 dark:bg-indigo-950/20 dark:text-indigo-400" borderClass="border-indigo-100 dark:border-indigo-900/30" />
-                  <StatCard label="Clean Files" value={mw.cleanFiles} icon={CheckCircle2} colorClass="bg-emerald-50 text-emerald-600 dark:bg-emerald-950/20 dark:text-emerald-400" borderClass="border-emerald-100 dark:border-emerald-900/30" />
                 </div>
               </div>
 

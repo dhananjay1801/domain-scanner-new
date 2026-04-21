@@ -1,10 +1,12 @@
 import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { getScanHistory } from "../services/api";
 
 function ScanHistory() {
   const [history, setHistory] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const navigate = useNavigate();
 
   useEffect(() => {
     const fetchHistory = async () => {
@@ -70,10 +72,11 @@ function ScanHistory() {
         </div>
       ) : (
         <div className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm">
-          <div className="grid grid-cols-[2fr_1.5fr_1.5fr] gap-4 border-b border-slate-200 bg-slate-50 px-8 py-5 text-xs font-bold uppercase tracking-[0.22em] text-slate-500">
+          <div className="grid grid-cols-[2fr_1.2fr_1.3fr_0.9fr] gap-4 border-b border-slate-200 bg-slate-50 px-8 py-5 text-xs font-bold uppercase tracking-[0.22em] text-slate-500">
             <span>Target Domain</span>
             <span>Security Score</span>
             <span>Scan Date</span>
+            <span className="text-right">Action</span>
           </div>
 
           {history.map((scan, idx) => {
@@ -97,7 +100,7 @@ function ScanHistory() {
             return (
               <div
                 key={`${scan.domain}-${idx}`}
-                className="grid grid-cols-[2fr_1.5fr_1.5fr] gap-4 border-b border-slate-100 px-8 py-6 items-center hover:bg-slate-50 transition last:border-b-0"
+                className="grid grid-cols-[2fr_1.2fr_1.3fr_0.9fr] gap-4 border-b border-slate-100 px-8 py-6 items-center hover:bg-slate-50 transition last:border-b-0"
               >
                 <div>
                   <p className="font-bold text-lg text-slate-900">{scan.domain}</p>
@@ -112,6 +115,23 @@ function ScanHistory() {
                   )}
                 </div>
                 <p className="text-sm font-medium text-slate-600">{scannedAt}</p>
+                <div className="flex justify-end">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const domain = (scan.domain || "").trim();
+                      if (!domain) return;
+                      navigate(`/scan-details?domain=${encodeURIComponent(domain)}`, {
+                        state: scan.result ? { preloadedResult: scan.result } : undefined,
+                      });
+                    }}
+                    className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-bold text-slate-700 shadow-sm hover:bg-slate-100 transition-colors"
+                    title="Open full scan details"
+                  >
+                    <span className="material-symbols-outlined text-[18px]">open_in_new</span>
+                    Full Info
+                  </button>
+                </div>
               </div>
             );
           })}
