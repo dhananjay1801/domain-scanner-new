@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import { Loader2 } from "lucide-react";
 import {
   getProfile,
@@ -41,7 +41,9 @@ function clearDomainCaches() {
 }
 function Profile() {
   const navigate = useNavigate();
+  const location = useLocation();
   const token = localStorage.getItem("token");
+  const isAdminProfileRoute = location.pathname.startsWith("/admin/profile");
 
   // ─── Profile state ─────────────────────────────────────────────────────────
   const [profile, setProfile] = useState(null);
@@ -83,15 +85,16 @@ function Profile() {
         const data = await getProfile(token);
         setProfile(data);
 
-        // Fetch members for all users
-        setMembersLoading(true);
-        try {
-          const membersList = await getMembers(token);
-          setMembers(membersList);
-        } catch {
-          // Member fetch failed silently
-        } finally {
-          setMembersLoading(false);
+        if (data.role !== "admin") {
+          setMembersLoading(true);
+          try {
+            const membersList = await getMembers(token);
+            setMembers(membersList);
+          } catch {
+            // Member fetch failed silently
+          } finally {
+            setMembersLoading(false);
+          }
         }
       } catch {
         // Token expired or invalid
@@ -108,7 +111,32 @@ function Profile() {
   }, [token, navigate]);
 
   useEffect(() => {
+    if (!profile || profileLoading) return;
+
+    if (profile.role === "admin" && location.pathname === "/profile") {
+      navigate("/admin/profile", { replace: true });
+      return;
+    }
+
+    if (isAdminProfileRoute && profile.role !== "admin") {
+      navigate("/scan-dashboard", { replace: true });
+    }
+  }, [
+    profile,
+    profileLoading,
+    location.pathname,
+    isAdminProfileRoute,
+    navigate,
+  ]);
+
+  useEffect(() => {
     if (!profile || !token) return;
+
+    if (profile.role === "admin") {
+      setDomainScans([]);
+      setDomainScansLoading(false);
+      return;
+    }
 
     const domains = dedupeDomains(normalizeProfileDomains(profile.domain));
 
@@ -227,6 +255,80 @@ function Profile() {
     return (
       <div className="flex h-full items-center justify-center">
         <Loader2 size={32} className="animate-spin text-indigo-600" />
+      </div>
+    );
+  }
+
+  if (profile?.role === "admin") {
+    return (
+      <div className="mx-auto max-w-7xl p-6 md:p-12">
+        <div className="mb-8">
+          <p className="mb-2 text-xs font-bold uppercase tracking-[0.28em] text-indigo-600">
+            Platform administration
+          </p>
+          <h1 className="font-headline text-4xl font-extrabold tracking-tight text-slate-900 dark:text-slate-100">
+            Administrator profile
+          </h1>
+          <p className="mt-2 max-w-2xl text-slate-600 dark:text-slate-400">
+            Your account details for the admin console. Use Settings in the
+            sidebar to reset your password, theme, or sign out.
+          </p>
+        </div>
+
+        <section className="max-w-lg">
+          <div className="flex flex-col rounded-2xl border border-slate-200 bg-white p-8 shadow-sm dark:border-slate-700 dark:bg-slate-900">
+            <div className="flex flex-col items-center text-center">
+              <div className="mb-4 flex h-20 w-20 items-center justify-center rounded-full border-2 border-indigo-100 bg-slate-100 text-2xl font-bold text-indigo-700 dark:border-indigo-900 dark:bg-slate-800 dark:text-indigo-400">
+                {getInitials(profile?.email)}
+              </div>
+              <span className="mt-1 inline-block rounded-full bg-indigo-100 px-3 py-0.5 text-xs font-bold uppercase text-indigo-700 dark:bg-indigo-950 dark:text-indigo-300">
+                Administrator
+              </span>
+            </div>
+
+            <div className="mt-6 flex flex-col gap-4 border-t border-slate-100 pt-6 dark:border-slate-700">
+              <div className="flex items-center justify-between text-sm">
+                <span className="font-medium text-slate-500 dark:text-slate-400">
+                  Email
+                </span>
+                <span className="ml-4 truncate font-semibold text-slate-900 dark:text-slate-100">
+                  {profile?.email}
+                </span>
+              </div>
+              <div className="flex items-center justify-between text-sm">
+                <span className="font-medium text-slate-500 dark:text-slate-400">
+                  Role
+                </span>
+                <span className="font-semibold capitalize text-slate-900 dark:text-slate-100">
+                  {profile?.role}
+                </span>
+              </div>
+              {profile?.user_id != null && (
+                <div className="flex items-center justify-between text-sm">
+                  <span className="font-medium text-slate-500 dark:text-slate-400">
+                    User ID
+                  </span>
+                  <span className="font-mono text-xs font-semibold text-slate-700 dark:text-slate-300">
+                    {profile.user_id}
+                  </span>
+                </div>
+              )}
+            </div>
+          </div>
+        </section>
+
+        {toast?.text && (
+          <div
+            role="status"
+            className={`fixed right-4 top-4 z-[100] max-w-sm rounded-xl border px-4 py-3 text-sm font-medium shadow-lg ${
+              toast.type === "error"
+                ? "border-red-200 bg-red-50 text-red-800"
+                : "border-emerald-200 bg-emerald-50 text-emerald-800"
+            }`}
+          >
+            {toast.text}
+          </div>
+        )}
       </div>
     );
   }

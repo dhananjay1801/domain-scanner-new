@@ -89,6 +89,7 @@ function App() {
       >
         <Route index element={<AdminUsers />} />
         <Route path="subscription" element={<AdminSubscription />} />
+        <Route path="profile" element={<Profile />} />
       </Route>
     </Routes>
   );

@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
-from app.api.admin.schemas import BlacklistEmailRequest
+from app.api.admin.schemas import BlacklistEmailRequest, CreateAdminRequest
 from app.api.admin.service import (
     block_email,
     generate_promo_code,
@@ -10,6 +10,7 @@ from app.api.admin.service import (
     get_scan_summaries,
     get_total_scans,
     get_users_by_org,
+    provision_admin_account,
     unblock_email,
 )
 from app.core.middleware import require_admin
@@ -41,6 +42,15 @@ def list_users_by_org(
     _current_admin: User = Depends(require_admin),
 ):
     return get_users_by_org(db)
+
+
+@router.post("/create-admin")
+def create_admin(
+    req: CreateAdminRequest,
+    db: Session = Depends(get_db),
+    current_admin: User = Depends(require_admin),
+):
+    return provision_admin_account(req.email, current_admin, db)
 
 
 @router.post("/blacklist/block")

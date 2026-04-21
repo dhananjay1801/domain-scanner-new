@@ -160,6 +160,14 @@ export function getUsersByOrg(token) {
   return request("/admin/users", { token });
 }
 
+export function createAdmin(email, token) {
+  return request("/admin/create-admin", {
+    method: "POST",
+    body: { email },
+    token,
+  });
+}
+
 export function blockUserByEmail(email, token) {
   return request("/admin/blacklist/block", {
     method: "POST",

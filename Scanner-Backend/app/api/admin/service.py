@@ -1,11 +1,14 @@
 import random
+import secrets
 import string
 import uuid
 
 from fastapi import HTTPException
 from sqlalchemy.orm import Session
 
+from app.api.auth.service import hashPassword
 from app.db.models import Blacklist, Organization, PromoCode, ScanScoreHistory, ScanSummary, User
+from app.utils.email import send_new_admin_credentials_email
 
 
 def _generate_promo_string(length: int = 10) -> str:
@@ -237,3 +240,47 @@ def get_scan_summaries(db: Session) -> list[dict]:
 def get_total_scans(db: Session) -> dict:
     total_scans = db.query(ScanScoreHistory).count()
     return {"total_scans": total_scans}
+
+
+def provision_admin_account(email: str, current_admin: User, db: Session) -> dict:
+    normalized = _normalize_email(email)
+
+    if normalized == current_admin.email.lower():
+        raise HTTPException(status_code=400, detail="Cannot provision an admin account for your own email")
+
+    if db.query(Blacklist).filter(Blacklist.email == normalized).first():
+        raise HTTPException(status_code=400, detail="This email is blocked")
+
+    if db.query(User).filter(User.email == normalized).first():
+        raise HTTPException(status_code=400, detail="A user with this email already exists")
+
+    plain_password = secrets.token_urlsafe(12)
+    new_admin = User(
+        user_id=str(uuid.uuid4()),
+        email=normalized,
+        password=hashPassword(plain_password),
+        role="admin",
+        org_id=None,
+        email_verified=True,
+    )
+    db.add(new_admin)
+
+    try:
+        send_new_admin_credentials_email(
+            to_email=normalized,
+            plain_password=plain_password,
+            invited_by_email=current_admin.email,
+        )
+    except Exception as email_err:
+        db.rollback()
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to send credentials email to {normalized}: {str(email_err)}",
+        )
+
+    db.commit()
+
+    return {
+        "message": "Admin account created and credentials sent by email",
+        "email": normalized,
+    }

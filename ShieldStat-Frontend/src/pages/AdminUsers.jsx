@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { getUsersByOrg, getBlacklistedEmails, blockUserByEmail, unblockUserByEmail, getScanSummaries, getTotalScans } from "../services/api";
+import { getUsersByOrg, getBlacklistedEmails, blockUserByEmail, unblockUserByEmail, getScanSummaries, getTotalScans, createAdmin } from "../services/api";
 
 function AdminUsers() {
   const [activeTab, setActiveTab] = useState("users");
@@ -14,9 +14,12 @@ function AdminUsers() {
 
   const [blacklisted, setBlacklisted] = useState([]);
   const [blacklistLoading, setBlacklistLoading] = useState(false);
-  const [emailToBlock, setEmailToBlock] = useState("");
   const [blocking, setBlocking] = useState(false);
+  const [newAdminEmail, setNewAdminEmail] = useState("");
+  const [creatingAdmin, setCreatingAdmin] = useState(false);
   const [notification, setNotification] = useState({ text: "", type: "" });
+  const [userSearch, setUserSearch] = useState("");
+  const [blacklistSearch, setBlacklistSearch] = useState("");
 
   const showNotification = (text, type = "success") => {
     setNotification({ text, type });
@@ -68,14 +71,12 @@ function AdminUsers() {
     }
   };
 
-  const handleBlockEmail = async (e) => {
-    e.preventDefault();
-    if (!emailToBlock) return;
+  const handleBlockUser = async (email) => {
+    if (!email) return;
     setBlocking(true);
     try {
-      await blockUserByEmail(emailToBlock, localStorage.getItem("token"));
+      await blockUserByEmail(email, localStorage.getItem("token"));
       showNotification("Email blocked successfully");
-      setEmailToBlock("");
       fetchBlacklist();
       fetchUsers(); // Refresh users to update blocked status
     } catch (err) {
@@ -93,6 +94,22 @@ function AdminUsers() {
       fetchUsers(); // Refresh users to update blocked status
     } catch (err) {
       showNotification(err.message, "error");
+    }
+  };
+
+  const handleCreateAdmin = async (e) => {
+    e.preventDefault();
+    if (!newAdminEmail.trim()) return;
+    setCreatingAdmin(true);
+    try {
+      await createAdmin(newAdminEmail.trim(), localStorage.getItem("token"));
+      showNotification("Admin created — login details were sent by email.");
+      setNewAdminEmail("");
+      fetchUsers();
+    } catch (err) {
+      showNotification(err.message, "error");
+    } finally {
+      setCreatingAdmin(false);
     }
   };
 
@@ -131,9 +148,56 @@ function AdminUsers() {
 
   const organizations = usersData?.organizations || [];
   const adminUsers = usersData?.admin || [];
-  const total_users =
-    organizations.reduce((acc, org) => acc + (org.users?.length || 0), 0) +
-    adminUsers.length;
+  const totalOrgUsers = organizations.reduce((acc, org) => {
+    const users = Array.isArray(org.users) ? org.users : [];
+    return (
+      acc +
+      users.filter((u) => u?.role === "owner" || u?.role === "member").length
+    );
+  }, 0);
+
+  const total_users = totalOrgUsers;
+  const total_admins = adminUsers.length;
+
+  const allUsers = [
+    ...organizations.flatMap((org) => {
+      const users = Array.isArray(org.users) ? org.users : [];
+      return users.map((u) => ({
+        ...u,
+        org_id: org.org_id,
+        org_domain: org.domain,
+        is_platform_admin: false,
+      }));
+    }),
+    ...adminUsers.map((u) => ({
+      ...u,
+      org_id: null,
+      org_domain: null,
+      is_platform_admin: true,
+      role: u?.role || "admin",
+    })),
+  ].filter((u) => u?.email);
+
+  const normalizedUserSearch = userSearch.trim().toLowerCase();
+  const unblockedUsers = allUsers.filter((u) => !u?.is_blacklisted);
+  const filteredUsers = normalizedUserSearch
+    ? unblockedUsers.filter((u) =>
+        (u.email || "").toLowerCase().includes(normalizedUserSearch),
+      )
+    : unblockedUsers;
+
+  const normalizedBlacklistSearch = blacklistSearch.trim().toLowerCase();
+  const normalizedBlacklisted = blacklisted
+    .map((row) => ({
+      email: typeof row === "string" ? row : row?.email,
+      created_at: typeof row === "object" ? row?.created_at : null,
+    }))
+    .filter((row) => row.email);
+  const filteredBlacklisted = normalizedBlacklistSearch
+    ? normalizedBlacklisted.filter((row) =>
+        (row.email || "").toLowerCase().includes(normalizedBlacklistSearch),
+      )
+    : normalizedBlacklisted;
 
 
   return (
@@ -175,7 +239,7 @@ function AdminUsers() {
         </div>
 
         {/* Stats Row */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           <div className="bg-surface-container-lowest p-4 rounded-xl shadow-sm group flex items-center justify-between">
             <div className="flex items-center gap-4">
               <div className="w-10 h-10 rounded-lg bg-primary-container/30 flex items-center justify-center text-primary">
@@ -188,9 +252,20 @@ function AdminUsers() {
                 <p className="text-2xl font-black text-on-surface leading-none">{total_users}</p>
               </div>
             </div>
-            <span className="text-[10px] font-bold text-primary px-2 py-1 bg-primary-container rounded-full">
-              LIVE
-            </span>
+          </div>
+
+          <div className="bg-surface-container-lowest p-4 rounded-xl shadow-sm group flex items-center justify-between">
+            <div className="flex items-center gap-4">
+              <div className="w-10 h-10 rounded-lg bg-secondary-container/30 flex items-center justify-center text-secondary">
+                <span className="material-symbols-outlined text-lg">admin_panel_settings</span>
+              </div>
+              <div>
+                <h3 className="text-on-surface-variant text-[10px] font-bold uppercase tracking-widest mb-0.5">
+                  Admins
+                </h3>
+                <p className="text-2xl font-black text-on-surface leading-none">{total_admins}</p>
+              </div>
+            </div>
           </div>
 
           <div className="bg-surface-container-lowest p-4 rounded-xl shadow-sm group flex items-center justify-between">
@@ -205,22 +280,86 @@ function AdminUsers() {
                 <p className="text-2xl font-black text-on-surface leading-none">{totalScansSystem}</p>
               </div>
             </div>
-            <span className="text-[10px] font-bold text-tertiary">+14%</span>
           </div>
         </div>
 
         {activeTab === "users" && (
             <>
+            <div className="grid grid-cols-12 gap-8">
+              <div className="col-span-12 bg-surface-container-lowest rounded-3xl overflow-hidden shadow-sm border border-surface-container">
+                <div className="px-8 py-6 border-b border-surface-container flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                  <div>
+                    <h3 className="text-xl font-bold text-on-surface">Platform administrators</h3>
+                    
+                  </div>
+                </div>
+                <div className="p-8 grid grid-cols-1 lg:grid-cols-2 gap-10">
+                  <div>
+                    <h4 className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant mb-3">
+                      Current admins
+                    </h4>
+                    {adminUsers.length === 0 ? (
+                      <p className="text-sm text-on-surface-variant">No administrator accounts besides the default set.</p>
+                    ) : (
+                      <ul className="space-y-2">
+                        {adminUsers.map((u) => (
+                          <li
+                            key={u.user_id}
+                            className="flex items-center justify-between gap-3 rounded-xl bg-surface-container-low px-4 py-3"
+                          >
+                            <span className="text-sm font-semibold text-on-surface truncate">{u.email}</span>
+                            {u.is_blacklisted ? (
+                              <span className="shrink-0 px-2 py-0.5 bg-red-100 text-red-700 text-[10px] font-bold rounded-full uppercase">
+                                Blocked
+                              </span>
+                            ) : (
+                              <span className="shrink-0 px-2 py-0.5 bg-emerald-100 text-emerald-700 text-[10px] font-bold rounded-full uppercase">
+                                Active
+                              </span>
+                            )}
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
+                  <div className="rounded-2xl bg-surface-container-low p-6 border border-surface-container">
+                    <h4 className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant mb-4">
+                      Invite new admin
+                    </h4>
+                    <form onSubmit={handleCreateAdmin} className="space-y-4">
+                      <div>
+                        <label htmlFor="new-admin-email" className="sr-only">
+                          Admin email
+                        </label>
+                        <input
+                          id="new-admin-email"
+                          type="email"
+                          value={newAdminEmail}
+                          onChange={(e) => setNewAdminEmail(e.target.value)}
+                          placeholder="admin@company.com"
+                          required
+                          autoComplete="off"
+                          className="w-full bg-surface-container-lowest border border-surface-container rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-primary/30 focus:border-primary"
+                        />
+                      </div>
+                      <button
+                        type="submit"
+                        disabled={creatingAdmin}
+                        className="w-full py-3 bg-primary text-white font-bold text-sm rounded-xl shadow-lg shadow-primary/20 hover:opacity-90 transition-all disabled:opacity-50"
+                      >
+                        {creatingAdmin ? "Creating…" : "Create admin and send email"}
+                      </button>
+                    </form>
+                  </div>
+                </div>
+              </div>
+            </div>
+
             {/* Registered Entities Table */}
             <div className="grid grid-cols-12 gap-8">
             <div className="col-span-12 xl:col-span-12 bg-surface-container-lowest rounded-3xl overflow-hidden shadow-sm">
-                <div className="px-8 py-6 flex items-center justify-between">
+                <div className="px-8 py-6">
                 <h3 className="text-xl font-bold">Organizations &amp; Users</h3>
-                <div className="flex items-center gap-2">
-                    <button className="p-2 hover:bg-surface-container rounded-lg">
-                    <span className="material-symbols-outlined">filter_list</span>
-                    </button>
-                </div>
                 </div>
                 
                 {organizations.length === 0 ? (
@@ -392,47 +531,110 @@ function AdminUsers() {
 
         {activeTab === "blacklist" && (
             <div className="grid grid-cols-12 gap-8">
-                {/* Block Form */}
-                <div className="col-span-12 xl:col-span-4 space-y-8">
-                    <div className="bg-surface-container-lowest p-8 rounded-3xl shadow-sm border border-red-100">
-                        <div className="w-12 h-12 rounded-2xl bg-red-100 flex items-center justify-center text-red-600 mb-6">
-                            <span className="material-symbols-outlined">gpp_bad</span>
+                {/* Users list (block/unblock) */}
+                <div className="col-span-12 xl:col-span-6 space-y-8">
+                    <div className="bg-surface-container-lowest rounded-3xl overflow-hidden shadow-sm border border-surface-container">
+                        <div className="px-8 py-6 border-b border-surface-container">
+                            <h3 className="text-xl font-bold">Users</h3>
+                            <p className="text-xs text-on-surface-variant mt-1">
+                              Block or unblock users directly.
+                            </p>
+                            <div className="mt-4">
+                              <input
+                                type="text"
+                                value={userSearch}
+                                onChange={(e) => setUserSearch(e.target.value)}
+                                placeholder="Search user email…"
+                                className="w-full bg-surface-container-low border border-surface-container rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-primary/20 focus:border-primary"
+                              />
+                            </div>
                         </div>
-                        <h3 className="text-xl font-bold mb-2">Block User Entity</h3>
-                        <p className="text-sm text-on-surface-variant mb-6">
-                            Enter an email address to immediately block their access across all organizations.
-                        </p>
-                        <form onSubmit={handleBlockEmail} className="space-y-4">
-                             <div>
-                                <input
-                                    type="email"
-                                    value={emailToBlock}
-                                    onChange={(e) => setEmailToBlock(e.target.value)}
-                                    placeholder="malicious@entity.com"
-                                    required
-                                    className="w-full bg-surface-container-low border-none rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-red-500/20"
-                                />
-                             </div>
-                             <button 
-                                type="submit" 
-                                disabled={blocking}
-                                className="w-full py-3 bg-red-600 text-white font-bold text-sm rounded-xl shadow-lg shadow-red-500/20 hover:bg-red-700 transition-all disabled:opacity-50"
-                             >
-                                {blocking ? "Blocking..." : "Block Email"}
-                             </button>
-                        </form>
+
+                        <div className="max-h-[540px] overflow-y-auto">
+                          {filteredUsers.length === 0 ? (
+                            <div className="p-10 text-center text-slate-500">
+                              No users found.
+                            </div>
+                          ) : (
+                            <ul className="divide-y divide-surface-container">
+                              {filteredUsers.map((u) => (
+                                <li key={`${u.user_id ?? u.email}-${u.org_id ?? "platform"}`} className="px-8 py-4 flex items-center justify-between gap-4">
+                                  <div className="min-w-0">
+                                    <div className="flex items-center gap-2">
+                                      <span className="text-sm font-semibold text-on-surface truncate">
+                                        {u.email}
+                                      </span>
+                                      {u.is_platform_admin ? (
+                                        <span className="shrink-0 px-2 py-0.5 bg-indigo-100 text-indigo-700 text-[10px] font-bold rounded-full uppercase">
+                                          Admin
+                                        </span>
+                                      ) : (
+                                        <span className="shrink-0 px-2 py-0.5 bg-surface-container text-on-surface-variant text-[10px] font-bold rounded-full uppercase">
+                                          {u.role}
+                                        </span>
+                                      )}
+                                    </div>
+                                    <div className="mt-1 flex flex-wrap items-center gap-2 text-[10px] text-on-surface-variant">
+                                      {u.org_id && <span className="font-mono">Org: {u.org_id}</span>}
+                                      {u.is_blacklisted ? (
+                                        <span className="px-2 py-0.5 bg-red-100 text-red-700 font-bold rounded-full uppercase">
+                                          Blocked
+                                        </span>
+                                      ) : (
+                                        <span className="px-2 py-0.5 bg-emerald-100 text-emerald-700 font-bold rounded-full uppercase">
+                                          Active
+                                        </span>
+                                      )}
+                                    </div>
+                                  </div>
+
+                                  <div className="shrink-0">
+                                    {u.is_blacklisted ? (
+                                      <button
+                                        type="button"
+                                        onClick={() => handleUnblockEmail(u.email)}
+                                        className="px-4 py-2 bg-white border border-slate-200 text-sm font-semibold rounded-lg hover:border-emerald-200 hover:text-emerald-700 hover:bg-emerald-50 transition-all disabled:opacity-60"
+                                        disabled={blocking}
+                                      >
+                                        Unblock
+                                      </button>
+                                    ) : (
+                                      <button
+                                        type="button"
+                                        onClick={() => handleBlockUser(u.email)}
+                                        className="px-4 py-2 bg-red-600 text-white text-sm font-semibold rounded-lg shadow-sm hover:bg-red-700 transition-all disabled:opacity-60"
+                                        disabled={blocking}
+                                      >
+                                        Block
+                                      </button>
+                                    )}
+                                  </div>
+                                </li>
+                              ))}
+                            </ul>
+                          )}
+                        </div>
                     </div>
                 </div>
 
                 {/* List */}
-                <div className="col-span-12 xl:col-span-8 bg-surface-container-lowest rounded-3xl overflow-hidden shadow-sm">
+                <div className="col-span-12 xl:col-span-6 bg-surface-container-lowest rounded-3xl overflow-hidden shadow-sm">
                     <div className="px-8 py-6 border-b border-surface-container">
                         <h3 className="text-xl font-bold text-red-600">Blacklisted Emails</h3>
                         <p className="text-xs text-on-surface-variant mt-1">Currently blocked identities.</p>
+                        <div className="mt-4">
+                          <input
+                            type="text"
+                            value={blacklistSearch}
+                            onChange={(e) => setBlacklistSearch(e.target.value)}
+                            placeholder="Search blacklisted email…"
+                            className="w-full bg-white border border-surface-container rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-red-500/15 focus:border-red-400"
+                          />
+                        </div>
                     </div>
                     {blacklistLoading ? (
                         <div className="p-12 text-center text-slate-500">Loading blacklist...</div>
-                    ) : blacklisted.length === 0 ? (
+                    ) : filteredBlacklisted.length === 0 ? (
                         <div className="p-12 text-center text-slate-500 flex flex-col items-center">
                             <span className="material-symbols-outlined text-4xl mb-3 opacity-20">verified_user</span>
                             No entities are currently blacklisted.
@@ -448,13 +650,11 @@ function AdminUsers() {
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y divide-surface-container">
-                                    {blacklisted.map((row) => {
-                                      const email =
-                                        typeof row === "string" ? row : row?.email;
-                                      const blockedAt =
-                                        typeof row === "object" && row?.created_at
-                                          ? new Date(row.created_at).toLocaleString()
-                                          : "—";
+                                    {filteredBlacklisted.map((row) => {
+                                      const email = row.email;
+                                      const blockedAt = row?.created_at
+                                        ? new Date(row.created_at).toLocaleString()
+                                        : "—";
                                       return (
                                         <tr key={email} className="hover:bg-red-50 transition-colors">
                                             <td className="px-8 py-4 font-semibold text-on-surface">{email}</td>

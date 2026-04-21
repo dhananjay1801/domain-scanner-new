@@ -107,6 +107,10 @@ function AdminLayout({ isDarkMode, onToggleDarkMode }) {
           </nav>
 
           <div className="pt-8 mt-8 border-t border-slate-200 dark:border-slate-800 space-y-2">
+            <SidebarLink to="/admin/profile" icon="person">
+              Profile
+            </SidebarLink>
+
             {/* Settings Button */}
             <div ref={settingsRef} className="relative">
               {isSettingsOpen && (
