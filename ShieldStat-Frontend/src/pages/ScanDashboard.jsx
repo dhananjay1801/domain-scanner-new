@@ -11,7 +11,7 @@ import {
   getInitialChecks,
   computeSectionProgress,
 } from "../data/checklistData";
-import { getScore, getMalwareReport, getProfile } from "../services/api";
+import { getScore, getMalwareLatestReport, getProfile, getAssessment } from "../services/api";
 
 import {
   FileText, Link2, Globe, Zap, ShieldAlert, CheckCircle2,
@@ -127,7 +127,7 @@ function ScanDashboard() {
     }).catch(() => { });
   }, [domainParam, setSearchParams]);
 
-  // Load scan data and local checklist checks
+  // Load scan data, malware report, and live assessment data
   useEffect(() => {
     const token = localStorage.getItem("token");
     const savedChecks = getInitialChecks();
@@ -136,10 +136,15 @@ function ScanDashboard() {
     setLoading(true);
     Promise.all([
       domain ? getScore(domain, token).catch(() => null) : Promise.resolve(null),
-      domain ? getMalwareReport(domain, token).catch(() => null) : Promise.resolve(null),
-    ]).then(([scoreData, malwareData]) => {
+      domain ? getMalwareLatestReport(domain, token).catch(() => null) : Promise.resolve(null),
+      getAssessment(token).catch(() => null),
+    ]).then(([scoreData, malwareData, assessmentData]) => {
       setData(scoreData);
       setMalware(malwareData);
+      if (assessmentData?.data) {
+        const flat = Object.assign({}, ...Object.values(assessmentData.data));
+        setSelections(flat);
+      }
       setLoading(false);
     });
   }, [domain]);
@@ -202,7 +207,11 @@ function ScanDashboard() {
   const domainName = data?.host?.domain || domain || "No Domain Selected";
 
   // Calculate malware summary
-  const mw = extractMalwareSummary(malware?.report);
+  // malware is the /malware/latest DB response: { scan_id, domain, result: { report, ... }, created_at }
+  const mw = extractMalwareSummary(malware?.result?.report);
+  const mwScannedAt = malware?.created_at
+    ? new Date(malware.created_at).toLocaleString("en-GB", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" })
+    : mw?.timestr || "—";
 
   return (
     <div className="min-h-screen bg-surface dark:bg-slate-950 relative">
@@ -442,7 +451,7 @@ function ScanDashboard() {
                     <span className="w-1.5 h-1.5 bg-rose-600 rounded-full" />
                     Malware Analytics Summary
                   </div>
-                  <span className="opacity-70">| &nbsp; Last Scan: {mw.timestr}</span>
+                  <span className="opacity-70">| &nbsp; Last Scan: {mwScannedAt}</span>
                 </div>
 
                 <h3 className="text-4xl md:text-5xl font-extrabold font-headline tracking-tight text-slate-900 dark:text-white mb-8 pb-1.5 leading-tight truncate px-0.5" title={domainName}>

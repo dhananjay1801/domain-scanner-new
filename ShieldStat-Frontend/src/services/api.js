@@ -229,6 +229,20 @@ export function getMalwareReport(domain, token, signal) {
   });
 }
 
+export function getMalwareLatestReport(domain, token, signal) {
+  return request(`/malware/latest?domain=${encodeURIComponent(domain)}`, {
+    token,
+    signal,
+  });
+}
+
+export function getMalwareReportById(scanId, token, signal) {
+  return request(`/malware/report/${encodeURIComponent(scanId)}`, {
+    token,
+    signal,
+  });
+}
+
 export function getMalwareScanHistory(domain, token, signal) {
   let endpoint = "/malware/history";
   if (domain) {
