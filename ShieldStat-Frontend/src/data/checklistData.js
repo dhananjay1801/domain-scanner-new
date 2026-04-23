@@ -1952,20 +1952,16 @@ export function saveChecks(checks) {
 export function computeSectionProgress(sectionId, checks) {
   const section = SECTION_MAP[sectionId];
   if (!section) return 0;
-  // Exclude ignored items from the total
-  const activeItems = section.items.filter((item) => !checks[`ignored_${item.id}`]);
-  const total = activeItems.length;
+  const total = section.items.length;
   if (total === 0) return 0;
-  const done = activeItems.filter((item) => checks[item.id]).length;
+  const done = section.items.filter((item) => checks[item.id] === true).length;
   return Math.round((done / total) * 100);
 }
 
 export function computeOverallProgress(checks) {
   const allItems = CHECKLIST_SECTIONS.flatMap((s) => s.items);
-  // Exclude ignored items from the total
-  const activeItems = allItems.filter((item) => !checks[`ignored_${item.id}`]);
-  const total = activeItems.length;
+  const total = allItems.length;
   if (total === 0) return 0;
-  const done = activeItems.filter((item) => checks[item.id]).length;
+  const done = allItems.filter((item) => checks[item.id] === true).length;
   return Math.round((done / total) * 100);
 }

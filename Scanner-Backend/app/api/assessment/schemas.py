@@ -1,16 +1,16 @@
 from pydantic import BaseModel
-from typing import Dict, Any, Optional
+from typing import Dict, Optional
 
 class UserAssessmentData(BaseModel):
-    authentication: Optional[Dict[str, Any]] = None
-    web_browsing: Optional[Dict[str, Any]] = None
-    emails: Optional[Dict[str, Any]] = None
-    messaging: Optional[Dict[str, Any]] = None
-    social_media: Optional[Dict[str, Any]] = None
-    networks: Optional[Dict[str, Any]] = None
-    mobile_devices: Optional[Dict[str, Any]] = None
-    personal_computers: Optional[Dict[str, Any]] = None
-    smart_home: Optional[Dict[str, Any]] = None
-    personal_finance: Optional[Dict[str, Any]] = None
-    human_aspect: Optional[Dict[str, Any]] = None
-    physical_security: Optional[Dict[str, Any]] = None
+    authentication: Optional[Dict[str, bool]] = None
+    web_browsing: Optional[Dict[str, bool]] = None
+    emails: Optional[Dict[str, bool]] = None
+    messaging: Optional[Dict[str, bool]] = None
+    social_media: Optional[Dict[str, bool]] = None
+    networks: Optional[Dict[str, bool]] = None
+    mobile_devices: Optional[Dict[str, bool]] = None
+    personal_computers: Optional[Dict[str, bool]] = None
+    smart_home: Optional[Dict[str, bool]] = None
+    personal_finance: Optional[Dict[str, bool]] = None
+    human_aspect: Optional[Dict[str, bool]] = None
+    physical_security: Optional[Dict[str, bool]] = None

@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useCallback, useEffect, useRef } from "react";
-import { useParams, useNavigate, Link } from "react-router-dom";
+import { useParams, Link } from "react-router-dom";
 import {
   CHECKLIST_SECTIONS,
   SECTION_MAP,
@@ -9,16 +9,28 @@ import {
 import { getRadarPoint, getRadarGridPoints } from "../utils/assessmentUtils";
 import { getAssessment, saveAssessment } from "../services/api";
 
-/* ═══════════════════════════════════════════════════════════════════════════
-   HELPERS
-   ═══════════════════════════════════════════════════════════════════════════ */
+function flattenAssessmentData(data) {
+  const flat = {};
 
-function getGrade(pct) {
-  if (pct >= 80) return { label: "Excellent", color: "text-emerald-500", bg: "bg-emerald-500" };
-  if (pct >= 60) return { label: "Good", color: "text-sky-500", bg: "bg-sky-500" };
-  if (pct >= 40) return { label: "Fair", color: "text-amber-500", bg: "bg-amber-500" };
-  if (pct >= 20) return { label: "Needs Work", color: "text-orange-500", bg: "bg-orange-500" };
-  return { label: "At Risk", color: "text-red-500", bg: "bg-red-500" };
+  Object.values(data || {}).forEach((section) => {
+    if (!section || typeof section !== "object") return;
+
+    Object.entries(section).forEach(([key, value]) => {
+      if (typeof value !== "boolean") return;
+
+      if (key.startsWith("ignored_")) {
+        const itemId = key.slice("ignored_".length);
+        if (!(itemId in flat) && value) {
+          flat[itemId] = false;
+        }
+        return;
+      }
+
+      flat[key] = value;
+    });
+  });
+
+  return flat;
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -210,14 +222,13 @@ function OverviewPage({ checks }) {
   const metrics = useMemo(
     () =>
       CHECKLIST_SECTIONS.map((s) => {
-        const done = s.items.filter((i) => checks[i.id]).length;
+        const done = s.items.filter((i) => checks[i.id] === true).length;
         const value =
           s.items.length > 0
             ? Math.round((done / s.items.length) * 100)
             : 0;
         return {
           id: s.id,
-          label: s.label,
           label: s.label,
           value,
           icon: s.icon,
@@ -228,13 +239,12 @@ function OverviewPage({ checks }) {
   );
 
   const overall = useMemo(() => computeOverallProgress(checks), [checks]);
-  const grade = getGrade(overall);
   const totalItems = CHECKLIST_SECTIONS.reduce(
     (a, s) => a + s.items.length,
     0
   );
   const totalDone = CHECKLIST_SECTIONS.reduce(
-    (a, s) => a + s.items.filter((i) => checks[i.id]).length,
+    (a, s) => a + s.items.filter((i) => checks[i.id] === true).length,
     0
   );
 
@@ -343,8 +353,8 @@ function OverviewPage({ checks }) {
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
           {CHECKLIST_SECTIONS.map((section) => {
             const progress = computeSectionProgress(section.id, checks);
-            const done = section.items.filter((i) => checks[i.id]).length;
-            const ignored = section.items.filter((i) => checks[`ignored_${i.id}`]).length;
+            const done = section.items.filter((i) => checks[i.id] === true).length;
+            const ignored = section.items.filter((i) => checks[i.id] === false).length;
             return (
               <CategoryCard
                 key={section.id}
@@ -474,8 +484,8 @@ function SectionDetailPage({ sectionId, checks, onToggle, onIgnore }) {
   }
 
   const progress = computeSectionProgress(sectionId, checks);
-  const doneCount = section.items.filter((i) => checks[i.id]).length;
-  const ignoredCount = section.items.filter((i) => checks[`ignored_${i.id}`]).length;
+  const doneCount = section.items.filter((i) => checks[i.id] === true).length;
+  const ignoredCount = section.items.filter((i) => checks[i.id] === false).length;
   const total = section.items.length;
 
   const currentIndex = CHECKLIST_SECTIONS.findIndex((s) => s.id === sectionId);
@@ -541,7 +551,7 @@ function SectionDetailPage({ sectionId, checks, onToggle, onIgnore }) {
           {/* Checklist Items */}
           <div className="flex flex-col">
             {section.items.map((item) => (
-              <ChecklistItem key={item.id} item={item} checked={!!checks[item.id]} ignored={!!checks[`ignored_${item.id}`]} onToggle={onToggle} onIgnore={onIgnore} color={section.color} />
+              <ChecklistItem key={item.id} item={item} checked={checks[item.id] === true} ignored={checks[item.id] === false} onToggle={onToggle} onIgnore={onIgnore} color={section.color} />
             ))}
           </div>
         </div>
@@ -597,8 +607,7 @@ export default function Assessment() {
       try {
         const res = await getAssessment(token);
         if (res?.data) {
-          const flat = Object.assign({}, ...Object.values(res.data));
-          setChecks(flat);
+          setChecks(flattenAssessmentData(res.data));
         }
       } catch (err) {
         console.error("Failed to fetch assessment data", err);
@@ -647,8 +656,9 @@ export default function Assessment() {
         const catKey = catMap[section.id];
         payload[catKey] = {};
         for (const item of section.items) {
-          if (checks[item.id] !== undefined) payload[catKey][item.id] = checks[item.id];
-          if (checks[`ignored_${item.id}`] !== undefined) payload[catKey][`ignored_${item.id}`] = checks[`ignored_${item.id}`];
+          if (typeof checks[item.id] === "boolean") {
+            payload[catKey][item.id] = checks[item.id];
+          }
         }
       }
 
@@ -664,16 +674,24 @@ export default function Assessment() {
 
   const toggle = useCallback((itemId) => {
     if (sectionId) pendingChanges.current.add(sectionId);
-    setChecks((prev) => ({ ...prev, [itemId]: !prev[itemId] }));
+    setChecks((prev) => {
+      const next = { ...prev };
+      if (next[itemId] === true) {
+        delete next[itemId];
+      } else {
+        next[itemId] = true;
+      }
+      return next;
+    });
   }, [sectionId]);
 
   const ignore = useCallback((itemId) => {
     if (sectionId) pendingChanges.current.add(sectionId);
     setChecks((prev) => {
-      const key = `ignored_${itemId}`;
-      const next = { ...prev, [key]: !prev[key] };
-      // If ignoring, also uncheck
-      if (next[key]) {
+      const next = { ...prev };
+      if (next[itemId] === false) {
+        delete next[itemId];
+      } else {
         next[itemId] = false;
       }
       return next;
