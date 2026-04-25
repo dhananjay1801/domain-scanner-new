@@ -3,12 +3,12 @@ from fastapi.responses import JSONResponse
 from app.api.scanner.service import create_scan_task_to_queue
 from app.api.scanner.schemas import ScanRequest as ScanReqSchema
 from app.core.redis_queue import RedisClient
-from app.core.middleware import require_owner
+from app.core.middleware import require_owner, protect
 from app.core.websocket_manager import ws_manager
 from sqlalchemy.orm import Session
 from app.db.base import get_db
 import json
-from app.db.models import User
+from app.db.models import User, ActiveScan
 
 redis_client = RedisClient()
 
@@ -46,3 +46,26 @@ async def get_scan_list():
 async def clear_scan_queue():
     redis_client.redis.delete("scan_queue")
     return {"message": "Scan queue cleared"}
+
+
+@router.get("/active")
+async def get_active_scan(
+    domain: str,
+    org_id: str,
+    db: Session = Depends(get_db),
+    user: User = Depends(protect)
+):
+    domain = domain.strip().lower()
+    active_scan = db.query(ActiveScan).filter(
+        ActiveScan.domain == domain, 
+        ActiveScan.org_id == org_id
+    ).first()
+    
+    if not active_scan:
+        return {"status": "scan complete"}
+        
+    return {
+        "domain": active_scan.domain,
+        "org_id": active_scan.org_id,
+        "status": active_scan.status
+    }

@@ -118,6 +118,10 @@ export function registerScanTask(domain, token) {
   });
 }
 
+export function getActiveScan(domain, orgId, token) {
+  return request(`/scanner/active?domain=${encodeURIComponent(domain)}&org_id=${orgId}`, { token });
+}
+
 // ─── Score / Analyzer ─────────────────────────────────────────────────────────
 
 export function getScore(domain, token) {

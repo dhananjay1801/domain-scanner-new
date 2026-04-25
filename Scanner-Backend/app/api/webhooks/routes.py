@@ -4,6 +4,7 @@ from app.api.analyzer.controller import calculate_and_store_summary
 from app.core.websocket_manager import ws_manager
 from sqlalchemy.orm import Session
 from app.db.base import get_db
+from app.db.models import ActiveScan
 
 router = APIRouter(prefix='/webhooks')
 
@@ -60,6 +61,14 @@ async def scan_result_webhook(
             "org_id": org_id,
             "domain": target.strip().lower(),
         })
+
+        active_scan = db.query(ActiveScan).filter(
+            ActiveScan.domain == target.strip().lower(),
+            ActiveScan.org_id == org_id
+        ).first()
+        if active_scan:
+            db.delete(active_scan)
+            db.commit()
 
         return {"status": "ok"}
 

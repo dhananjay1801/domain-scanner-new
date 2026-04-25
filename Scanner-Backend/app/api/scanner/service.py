@@ -4,7 +4,7 @@ from sqlalchemy.orm import Session
 import dns.resolver
 import dns.exception
 from app.core.redis_queue import RedisClient
-from app.db.models import Organization
+from app.db.models import Organization, ActiveScan
 
 redis_client = RedisClient()
 
@@ -62,6 +62,24 @@ def create_scan_task_to_queue(db: Session, domain: str, org_id: str):
         }
 
         redis_client.PushToQueue(data=scan_job)
+
+        active_scan = db.query(ActiveScan).filter(
+            ActiveScan.domain == domain,
+            ActiveScan.org_id == org_id
+        ).first()
+        if active_scan:
+            active_scan.org_id = org_id
+            active_scan.status = "pending"
+        else:
+            active_scan = ActiveScan(
+                domain=domain,
+                org_id=org_id,
+                status="pending"
+            )
+            db.add(active_scan)
+        
+        db.commit()
+
         return {
             "message": "Scan task registered successfully",
             "domain_validation": True

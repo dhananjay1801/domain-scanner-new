@@ -124,3 +124,12 @@ class MalwareScanResult(Base):
         Index("idx_malware_scan_org_domain", "org_id", "domain"),
         Index("idx_malware_scan_org_created", "org_id", "created_at"),
     )
+
+class ActiveScan(Base):
+    __tablename__ = "active_scan"
+
+    domain = Column(Text, primary_key=True)
+    org_id = Column(String(36), ForeignKey("organizations.org_id"), nullable=False)
+    status = Column(String(50), nullable=False, default="pending")
+    created_at = Column(TIMESTAMP, server_default=func.now())
+

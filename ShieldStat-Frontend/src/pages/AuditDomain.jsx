@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
-import { registerScanTask, getProfile, getWebSocketUrl, addDomain } from "../services/api";
+import { registerScanTask, getProfile, getWebSocketUrl, addDomain, getActiveScan } from "../services/api";
 
 const EVENT_PROGRESS_MAP = {
   domain_validation: 10,
@@ -232,6 +232,7 @@ function NewScan() {
   const [availableSlots, setAvailableSlots] = useState(0);
   const [newDomain, setNewDomain] = useState("");
   const [addDomainLoading, setAddDomainLoading] = useState(false);
+  const [orgId, setOrgId] = useState(null);
 
   const [toast, setToast] = useState(null);
 
@@ -261,6 +262,9 @@ function NewScan() {
         setAvailableSlots(Math.max(0, (profile?.max_domains || 0) - domains.length));
         if (domains[0] && !globalDomain) {
           setGlobalDomain(domains[0]);
+        }
+        if (profile?.org_id) {
+          setOrgId(profile.org_id);
         }
       } catch { }
       setProfileLoaded(true);
@@ -311,6 +315,39 @@ function NewScan() {
 
     return () => clearTimeout(timer);
   }, [isScanRunning, scanProgress, navigate, trimmedDomain]);
+
+  // Polling for active scan status
+  useEffect(() => {
+    let pollInterval;
+    let initialTimeout;
+    const checkActiveScan = async () => {
+      if (!isScanRunning || !trimmedDomain) return;
+      try {
+        const token = localStorage.getItem("token");
+        if (!token || !orgId) return;
+        const activeStatus = await getActiveScan(trimmedDomain, orgId, token);
+        if (activeStatus?.status === "scan complete") {
+          setGlobalScanProgress(100);
+          setGlobalTargetProgress(100);
+        }
+      } catch (e) {
+        // silently ignore polling errors
+      }
+    };
+
+    // Delay the first check by 10s to prevent race condition with registerScanTask
+    if (isScanRunning && trimmedDomain) {
+      initialTimeout = setTimeout(() => {
+        checkActiveScan();
+        pollInterval = setInterval(checkActiveScan, 10000);
+      }, 10000);
+    }
+
+    return () => {
+      if (initialTimeout) clearTimeout(initialTimeout);
+      if (pollInterval) clearInterval(pollInterval);
+    };
+  }, [isScanRunning, trimmedDomain, orgId]);
 
   const handleStartScan = () => {
     startGlobalScan(trimmedDomain);
